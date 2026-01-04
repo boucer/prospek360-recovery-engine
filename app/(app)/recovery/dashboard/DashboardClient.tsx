@@ -196,10 +196,23 @@ export default function DashboardClient({
             icon="⚡"
           />
           <Card
-            title="Backlog moyen"
-            value={`${metrics.kpis?.avgBacklogDays ?? 0} j`}
-            icon="📦"
-          />
+  title="Backlog moyen"
+  value={`${(
+    (metrics.kpis as any)?.avgBacklogDays ??
+    (metrics.kpis as any)?.avgBacklog ??
+    (metrics.kpis as any)?.backlogAvgDays ??
+    (metrics.kpis as any)?.avgBacklogDays7 ??
+    0
+  ).toFixed?.(1) ?? (
+    (metrics.kpis as any)?.avgBacklogDays ??
+    (metrics.kpis as any)?.avgBacklog ??
+    (metrics.kpis as any)?.backlogAvgDays ??
+    (metrics.kpis as any)?.avgBacklogDays7 ??
+    0
+  )} j`}
+  icon="📦"
+/>
+
         </section>
       </div>
 
