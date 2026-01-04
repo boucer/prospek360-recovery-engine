@@ -1,0 +1,167 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditRun {
+  id        String   @id @default(cuid())
+  status    String
+  message   String?
+  createdAt DateTime @default(now())
+
+  findings RecoveryFinding[]
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // relations
+  ghl           GhlConnection?
+  contacts      Contact[]
+  runs          RecoveryRun[]
+  conversations Conversation[]
+  messages      Message[]
+}
+
+model GhlConnection {
+  id             String @id @default(cuid())
+  organizationId String @unique
+
+  // GHL
+  locationId String
+  pipelineId String?
+  stageId    String?
+
+  // secrets/tokens (V1 simple)
+  apiKey         String? // si tu utilises clé API (simple)
+  accessToken    String? // si OAuth plus tard
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Contact {
+  id             String @id @default(cuid())
+  organizationId String
+
+  // identité
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
+
+  // GHL mapping
+  ghlContactId String?  @unique
+  tags         String[] @default([])
+
+  // statut recovery V1
+  status         String    @default("NEW") // NEW | AUDITED | ACTIVATED | PAID
+  lastActivityAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation?
+  messages     Message[]
+}
+
+model Conversation {
+  id             String @id @default(cuid())
+  organizationId String
+  contactId      String @unique
+
+  channel       String    @default("UNKNOWN") // SMS | EMAIL | FB | IG | CHAT | UNKNOWN
+  unreadCount   Int       @default(0)
+  lastMessageAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages     Message[]
+}
+
+model Message {
+  id             String  @id @default(cuid())
+  organizationId String
+  contactId      String
+  conversationId String?
+
+  direction String // IN | OUT
+  channel   String // SMS | EMAIL | FB | IG | CHAT | UNKNOWN
+  body      String
+  sentAt    DateTime @default(now())
+
+  externalId String? @unique // id GHL si tu veux
+
+  createdAt DateTime @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, contactId])
+  @@index([organizationId, sentAt])
+}
+
+model RecoveryRun {
+  id             String @id @default(cuid())
+  organizationId String
+
+  status     String    @default("DRAFT") // DRAFT | RUNNING | DONE | FAILED
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  // résultats audit V1 (simple)
+  totalContacts  Int @default(0)
+  flaggedCount   Int @default(0)
+  activatedCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model RecoveryFinding {
+  id          String   @id @default(cuid())
+  auditRunId  String
+  type        String
+  title       String
+  description String
+  action      String
+  severity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+    // ✅ NOUVEAU
+  handled     Boolean  @default(false)
+  handledAt DateTime?
+  valueCents Int @default(0)
+  autopilotQueued   Boolean  @default(false)
+  autopilotQueuedAt DateTime?
+
+  auditRun AuditRun @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+}
