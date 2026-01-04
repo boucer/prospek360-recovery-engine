@@ -163,27 +163,70 @@ export default async function RecoveryPage() {
         };
 
   return (
-    <div className="min-h-screen bg-[#05070f]">
-      {/* Body container — EXACTEMENT comme /audit */}
-      <div className="mx-auto w-full max-w-[1500px] px-6 lg:px-8 py-8">
-        <RecoveryDashboardClient kpis={kpis} trend={trend} breakdown={breakdown} insight={insight} />
+  <div className="min-h-screen bg-[#05070f]">
+    {/* DESKTOP HEADER */}
+    <div className="hidden md:block border-b border-white/10">
+      <div className="mx-auto max-w-[1500px] px-6 py-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Recovery</h1>
+          <p className="text-sm text-white/60">
+            Dernière analyse en temps réel
+          </p>
+        </div>
 
-        {/* Optionnel: liens rapides (garde si tu veux) */}
-        <div className="mt-6 flex flex-wrap gap-3 text-sm">
+        <div className="flex gap-2">
           <Link
             href="/audit"
-            className="rounded-xl border border-white/10 bg-slate-950/40 px-4 py-2 text-white/90 hover:bg-slate-950/60"
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
           >
             Ouvrir Audit
           </Link>
           <Link
             href="/autopilot"
-            className="rounded-xl border border-white/10 bg-slate-950/40 px-4 py-2 text-white/90 hover:bg-slate-950/60"
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
           >
             Ouvrir Auto-Pilot
           </Link>
         </div>
       </div>
     </div>
-  );
+
+    {/* BODY */}
+    <div className="mx-auto max-w-[1500px] px-4 md:px-6 py-6 pb-32">
+      <RecoveryDashboardClient
+        kpis={kpis}
+        trend={trend}
+        breakdown={breakdown}
+        insight={insight}
+      />
+    </div>
+
+    {/* MOBILE STICKY BAR */}
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pb-4">
+      <div className="rounded-2xl border border-red-500/30 bg-slate-950/90 backdrop-blur">
+        <div className="px-4 py-3">
+          <p className="text-xs text-white/60">Prochaine étape</p>
+          <p className="text-sm font-semibold text-white">
+            Continuer l’action prioritaire
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+          <Link
+            href="/audit"
+            className="rounded-xl bg-red-500/15 border border-red-500/40 py-3 text-center text-sm font-semibold text-white"
+          >
+            Ouvrir Audit
+          </Link>
+          <Link
+            href="/autopilot"
+            className="rounded-xl bg-white/5 border border-white/10 py-3 text-center text-sm font-semibold text-white"
+          >
+            Auto-Pilot
+          </Link>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 }
