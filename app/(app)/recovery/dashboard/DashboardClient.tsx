@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { DashboardMetrics, RangeKey } from "./page";
+import type { DashboardMetrics, RangeKey } from "./types";
 
 function money(n: number) {
   return new Intl.NumberFormat("fr-CA", {

@@ -104,6 +104,13 @@ export default async function RecoveryPage() {
     avgHoursToHandle7d,
     streak30d,
     avgBacklogDays,
+
+     // ✅ champs manquants requis par RecoveryKpis
+  recoverableCentsTodo: 0,
+  avgBacklogAgeDaysTodo: avgBacklogDays ?? 0,
+  handledLast7d: 0,
+  handledLast30d: 0,
+  recoveredCentsToday: 0,
   };
 
   // ===== Trend 7 jours =====
@@ -132,15 +139,16 @@ export default async function RecoveryPage() {
   }
 
   const breakdown = {
-    byType: Array.from(byTypeMap.entries())
-      .map(([key, count]) => ({ key, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8),
-    bySeverity: Array.from(bySevMap.entries())
-      .map(([key, count]) => ({ key, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8),
-  };
+  byType: Array.from(byTypeMap.entries())
+    .map(([key, count]) => ({ key: String(key), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8),
+
+  bySeverity: Array.from(bySevMap.entries())
+    .map(([key, count]) => ({ key: String(key), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8),
+};
 
   // ===== Insight directionnel (simple mais utile) =====
   const insight =
