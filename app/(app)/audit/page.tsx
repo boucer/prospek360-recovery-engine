@@ -297,9 +297,10 @@ export default async function AuditPage({
               </p>
             </div>
 
+            {/* ✅ Sortie unique (évite la confusion) */}
             <Link
-              href="/recovery/dashboard"
-              className="hidden lg:inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold hover:bg-white/10"
+              href="/recovery"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold hover:bg-white/10"
             >
               ← Dashboard
             </Link>
@@ -320,12 +321,8 @@ export default async function AuditPage({
             <ViewLastReportButton />
           </div>
 
-          <Link
-            href="/"
-            className="hidden lg:inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold hover:bg-slate-900"
-          >
-            ← Accueil
-          </Link>
+          {/* ✅ Plus de bouton "Accueil" ici (trop de sorties en haut) */}
+          <div />
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
@@ -419,18 +416,29 @@ export default async function AuditPage({
                 <AuditRunsTable runs={runs} />
               </div>
             </section>
+
+            {/* ✅ Accueil relégué en footer discret (non concurrent) */}
+            <div className="pt-2">
+              <Link
+                href="/"
+                className="text-xs text-slate-300/60 hover:text-slate-200"
+              >
+                ← Accueil
+              </Link>
+            </div>
           </section>
 
           {/* RIGHT — toujours visible */}
           <aside className="lg:sticky lg:top-6 self-start">
             <NextBestActionClient
-  opportunity={currentOpp as any}
-  prevHref={prevHref}
-  nextHref={nextHref}
-  urgentHref={urgentHref}
-  noreplyHref={noreplyHref}
-  allHref={allHref}
-/>
+              opportunity={currentOpp as any}
+              ageDays={ageDays}
+              prevHref={prevHref}
+              nextHref={nextHref}
+              urgentHref={urgentHref}
+              noreplyHref={noreplyHref}
+              allHref={allHref}
+            />
           </aside>
         </div>
       </div>

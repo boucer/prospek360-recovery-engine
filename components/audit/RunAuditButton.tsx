@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
 export default function RunAuditButton() {
   const [loading, setLoading] = useState(false);
@@ -24,7 +23,6 @@ export default function RunAuditButton() {
         throw new Error(json?.error ?? "Impossible de lancer l’audit.");
       }
 
-      // Refresh simple (ton module est server-rendered + prisma)
       window.location.reload();
     } catch (e: any) {
       setError(e?.message ?? "Erreur inconnue.");
@@ -34,21 +32,25 @@ export default function RunAuditButton() {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Row de boutons (top-left) */}
-      <div className="flex gap-3">
-        {/* Lancer l’audit (inchangé) */}
-        <button
-          onClick={handleRunAudit}
-          disabled={loading}
-          className="px-4 py-2 rounded-md bg-black text-white hover:bg-slate-800 disabled:opacity-50"
-          type="button"
-        >
-          {loading ? "Audit..." : "Lancer l’audit"}
-        </button>
+    <div className="flex flex-col gap-1">
+      <button
+        onClick={handleRunAudit}
+        disabled={loading}
+        type="button"
+        className="
+          inline-flex items-center justify-center
+          rounded-lg px-5 py-2.5
+          bg-black text-white font-semibold
+          hover:bg-slate-800
+          disabled:opacity-50
+        "
+      >
+        {loading ? "Audit en cours…" : "Lancer l’audit"}
+      </button>
 
-        
-      </div>
+      <span className="text-xs text-slate-400">
+        Scan rapide • 30–60 secondes
+      </span>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
     </div>

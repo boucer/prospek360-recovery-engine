@@ -5,6 +5,10 @@ export type RecoveryKpis = {
   todoCount: number;
   queuedCount: number;
 
+  // NEW (V1.1)
+  recoverableCentsTodo: number; // somme valueCents des TODO
+  avgBacklogAgeDaysTodo: number | null; // âge moyen des TODO (en jours)
+
   handledToday: number;
   handledLast7d: number;
   handledLast30d: number;
@@ -61,13 +65,14 @@ export async function getRecoveryDashboardData() {
   const last7Start = startOfDay(subDays(now, 6));
   const last30Start = startOfDay(subDays(now, 29));
 
-  // KPI counts
+  // KPI counts + NEW KPI sums
   const [
     todoCount,
     queuedCount,
     handledToday,
     handledLast7d,
     handledLast30d,
+    todoSum,
   ] = await Promise.all([
     prisma.recoveryFinding.count({ where: { handled: false } }),
     prisma.recoveryFinding.count({ where: { handled: false, autopilotQueued: true } }),
@@ -101,7 +106,34 @@ export async function getRecoveryDashboardData() {
         ],
       },
     }),
+
+    // NEW: valeur récupérable (TODO)
+    prisma.recoveryFinding.aggregate({
+      where: { handled: false },
+      _sum: { valueCents: true },
+    }),
   ]);
+
+  const recoverableCentsTodo = todoSum._sum.valueCents ?? 0;
+
+  // NEW: âge moyen du backlog (TODO) en jours (createdAt -> now)
+  const todoAgeRows = await prisma.recoveryFinding.findMany({
+    where: { handled: false },
+    select: { createdAt: true },
+    take: 5000,
+  });
+
+  const agesDays = todoAgeRows
+    .map((r) => {
+      const ms = now.getTime() - r.createdAt.getTime();
+      return ms >= 0 ? ms / (1000 * 60 * 60 * 24) : null;
+    })
+    .filter((x): x is number => typeof x === "number");
+
+  const avgBacklogAgeDaysTodo =
+    agesDays.length > 0
+      ? Math.round((agesDays.reduce((a, b) => a + b, 0) / agesDays.length) * 10) / 10
+      : null;
 
   // $ recovered sums
   const [sumToday, sum7d, sum30d] = await Promise.all([
@@ -202,7 +234,7 @@ export async function getRecoveryDashboardData() {
     });
   }
 
-  // Breakdown TODO (Prisma v6: pas de _all)
+  // Breakdown TODO
   const [byTypeRaw, bySeverityRaw] = await Promise.all([
     prisma.recoveryFinding.groupBy({
       by: ["type"],
@@ -250,6 +282,11 @@ export async function getRecoveryDashboardData() {
   const kpis: RecoveryKpis = {
     todoCount,
     queuedCount,
+
+    // NEW
+    recoverableCentsTodo,
+    avgBacklogAgeDaysTodo,
+
     handledToday,
     handledLast7d,
     handledLast30d,

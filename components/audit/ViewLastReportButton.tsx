@@ -9,25 +9,34 @@ export default async function ViewLastReportButton() {
 
   const disabled = !lastRun?.id;
 
-  // Même rendu que tes boutons actuels
   const base =
-    "inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition";
+    "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm transition";
   const enabled =
-    "border border-slate-300 bg-white hover:bg-slate-50 text-slate-900";
+    "border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10";
   const disabledCls =
-    "border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed";
+    "border border-white/10 bg-white/5 text-slate-500 cursor-not-allowed";
 
   if (disabled) {
     return (
-      <button type="button" className={`${base} ${disabledCls}`} disabled>
-        Voir le dernier rapport
-      </button>
+      <div className="flex flex-col gap-1">
+        <button type="button" className={`${base} ${disabledCls}`} disabled>
+          Dernier rapport
+        </button>
+        <span className="text-xs text-slate-500">
+          Aucun audit disponible
+        </span>
+      </div>
     );
   }
 
   return (
-    <Link className={`${base} ${enabled}`} href="/audit/report">
-      Voir le dernier rapport
-    </Link>
+    <div className="flex flex-col gap-1">
+      <Link href="/audit/report" className={`${base} ${enabled}`}>
+        Dernier rapport
+      </Link>
+      <span className="text-xs text-slate-400">
+        Lecture / export
+      </span>
+    </div>
   );
 }
