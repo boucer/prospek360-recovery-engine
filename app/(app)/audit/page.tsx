@@ -129,9 +129,7 @@ export default async function AuditPage({
   const sp = (await searchParams) ?? {};
 
   if (sp.require === "inbox") {
-    redirect(
-      `/activation/inbox?next=${encodeURIComponent(sp.next || "/audit")}`
-    );
+    redirect(`/activation/inbox?next=${encodeURIComponent(sp.next || "/audit")}`);
   }
   if (sp.require === "pro") {
     redirect(
@@ -193,53 +191,36 @@ export default async function AuditPage({
   // ✅ Liste Hero = seulement NON traitées
   const heroList = opportunities
     .filter((o) => !o.treated)
-    .filter((o) => (nbaMode === "urgent" ? o.severity >= 4 : true))
-    .sort((a, b) => {
-      if (a.severity !== b.severity) return b.severity - a.severity;
-      return (b.valueCents ?? 0) - (a.valueCents ?? 0);
-    });
+    .filter((o) =>
+      nbaMode === "urgent" ? o.severity >= 4 : nbaMode === "noreply" ? true : true
+    );
 
-  const selectedId =
-    sp.nba ?? autoPickFindingId(heroList, autoSelect) ?? heroList[0]?.findingId;
+  const picked = sp.nba ?? autoPickFindingId(heroList, autoSelect) ?? "";
+  const currentOpp =
+    heroList.find((x) => x.findingId === picked) ?? heroList[0] ?? null;
 
-  const currentOpp = heroList.find((o) => o.findingId === selectedId) ?? null;
   const ageDays = currentOpp ? daysAgo(new Date(currentOpp.createdAt)) : 0;
 
-  const hasDrilldownContext = !!(focus || autoSelect);
-
-  const selectedIndex = Math.max(
-    0,
-    heroList.findIndex((o) => o.findingId === (currentOpp?.findingId ?? ""))
-  );
-
-  const heroCount = heroList.length;
-  const prevOpp =
-    heroCount > 0 ? heroList[(selectedIndex - 1 + heroCount) % heroCount] : null;
-  const nextOpp =
-    heroCount > 0 ? heroList[(selectedIndex + 1) % heroCount] : null;
-
-  const baseParamsKeep: Record<string, string | null> = {
-    focus: focus ? String(focus) : null,
-    autoSelect: autoSelect ? String(autoSelect) : null,
+  const baseParamsKeep: Record<string, string | null | undefined> = {
+    view: sp.view ?? null,
+    history: sp.history ?? null,
+    focus: sp.focus ?? null,
+    autoSelect: sp.autoSelect ?? null,
   };
 
-  const prevHref =
-    prevOpp && heroCount > 1
-      ? addOrReplaceQuery("/audit", {
-          ...baseParamsKeep,
-          nbaMode,
-          nba: prevOpp.findingId,
-        })
-      : "#";
+  const idx = currentOpp
+    ? heroList.findIndex((x) => x.findingId === currentOpp.findingId)
+    : -1;
 
-  const nextHref =
-    nextOpp && heroCount > 1
-      ? addOrReplaceQuery("/audit", {
-          ...baseParamsKeep,
-          nbaMode,
-          nba: nextOpp.findingId,
-        })
-      : "#";
+  const prevOpp = idx > 0 ? heroList[idx - 1] : null;
+  const nextOpp = idx >= 0 && idx < heroList.length - 1 ? heroList[idx + 1] : null;
+
+  const prevHref = prevOpp
+    ? addOrReplaceQuery("/audit", { ...baseParamsKeep, nbaMode, nba: prevOpp.findingId })
+    : "#";
+  const nextHref = nextOpp
+    ? addOrReplaceQuery("/audit", { ...baseParamsKeep, nbaMode, nba: nextOpp.findingId })
+    : "#";
 
   const firstInMode = heroList[0]?.findingId ?? "";
   const urgentHref = addOrReplaceQuery("/audit", {
@@ -257,6 +238,8 @@ export default async function AuditPage({
     nbaMode: "all",
     nba: firstInMode || null,
   });
+
+  const hasDrilldownContext = !!(focus || autoSelect);
 
   /* =======================
      ✅ Pending / Confirmed (Undo Window)
@@ -315,14 +298,19 @@ export default async function AuditPage({
           )}
         </header>
 
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <RunAuditButton />
-            <ViewLastReportButton />
+        {/* ✅ ÉTAPE 2 — actions responsive / full-width (mobile) */}
+        <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
+          <div className="grid grid-cols-1 gap-3 sm:flex sm:items-center sm:gap-3 w-full">
+            <div className="w-full sm:w-auto">
+              <RunAuditButton />
+            </div>
+            <div className="w-full sm:w-auto">
+              <ViewLastReportButton />
+            </div>
           </div>
 
           {/* ✅ Plus de bouton "Accueil" ici (trop de sorties en haut) */}
-          <div />
+          <div className="hidden sm:block" />
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
@@ -391,9 +379,9 @@ export default async function AuditPage({
                             </span>
                           )}
                           <span className="text-[11px] text-slate-300/60">
-                            {new Date(o.handledAt ?? o.createdAt).toLocaleString(
-                              "fr-CA"
-                            )}
+                            {new Date(
+                              o.handledAt ?? o.createdAt
+                            ).toLocaleString("fr-CA")}
                           </span>
                         </div>
                         <div className="mt-1 text-xs text-slate-300/70 line-clamp-2">
