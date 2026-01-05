@@ -12,6 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur">
         <div className={HEADER_CONTAINER}>
           <div className="flex h-14 items-center justify-between gap-3">
+            {/* LEFT */}
             <div className="flex items-center gap-5">
               <Link href="/recovery" className="flex items-center gap-3">
                 <Image
@@ -27,7 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               </Link>
 
-              {/* Desktop nav */}
+              {/* Desktop navigation */}
               <nav className="hidden items-center gap-1 sm:flex">
                 <NavItem href="/recovery" label="Recovery" />
                 <NavItem href="/audit" label="Audit" />
@@ -35,15 +36,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </nav>
             </div>
 
-            {/* Right side actions */}
+            {/* RIGHT */}
             <div className="relative flex items-center gap-2">
-              {/* Mobile hamburger */}
-              <MobileNavMenu />
+              {/* Mobile hamburger ONLY */}
+              <div className="sm:hidden">
+                <MobileNavMenu />
+              </div>
 
-              {/* Accueil (reste visible, desktop & mobile) */}
+              {/* Accueil — DESKTOP ONLY (no mobile duplication) */}
               <Link
                 href="/"
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold hover:bg-white/10"
+                className="
+                  hidden sm:inline-flex
+                  rounded-xl border border-white/10
+                  bg-white/5 px-3 py-2
+                  text-sm font-semibold
+                  hover:bg-white/10
+                "
               >
                 Accueil
               </Link>
@@ -52,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* ✅ BODY = même largeur que Audit */}
+      {/* BODY */}
       <main className={BODY_CONTAINER}>{children}</main>
     </div>
   );

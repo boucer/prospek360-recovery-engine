@@ -282,11 +282,12 @@ export default async function AuditPage({
 
             {/* ✅ Sortie unique (évite la confusion) */}
             <Link
-              href="/recovery"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold hover:bg-white/10"
-            >
-              ← Dashboard
-            </Link>
+  href="/recovery"
+  className="hidden md:inline-flex rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+>
+  ← Dashboard
+</Link>
+
           </div>
 
           {hasDrilldownContext && (
