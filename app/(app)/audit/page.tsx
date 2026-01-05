@@ -1,4 +1,4 @@
-// app/audit/page.tsx
+// app/(app)/audit/page.tsx
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -282,12 +282,11 @@ export default async function AuditPage({
 
             {/* ✅ Sortie unique (évite la confusion) */}
             <Link
-  href="/recovery"
-  className="hidden md:inline-flex rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
->
-  ← Dashboard
-</Link>
-
+              href="/recovery"
+              className="hidden md:inline-flex rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+            >
+              ← Dashboard
+            </Link>
           </div>
 
           {hasDrilldownContext && (
@@ -299,7 +298,7 @@ export default async function AuditPage({
           )}
         </header>
 
-        {/* ✅ ÉTAPE 2 — actions responsive / full-width (mobile) */}
+        {/* ✅ Actions responsive / full-width (mobile) */}
         <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
           <div className="grid grid-cols-1 gap-3 sm:flex sm:items-center sm:gap-3 w-full">
             <div className="w-full sm:w-auto">
@@ -310,115 +309,13 @@ export default async function AuditPage({
             </div>
           </div>
 
-          {/* ✅ Plus de bouton "Accueil" ici (trop de sorties en haut) */}
           <div className="hidden sm:block" />
         </div>
 
+        {/* ✅ GRID: Hero en premier sur mobile (moins de scroll) */}
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
-          {/* LEFT */}
-          <section className="space-y-8 min-w-0">
-            <div id="opportunities-section" className="min-w-0">
-              <RecoveryFindingsPanel
-                findings={findingsLastRun as any}
-                highlightFindingId={currentOpp?.findingId ?? null}
-                highlightType={currentOpp?.typeCode ?? null}
-              />
-            </div>
-
-            <section id="historique" className="space-y-3">
-              <h2 className="text-lg font-semibold">Historique</h2>
-
-              {/* ✅ En attente (Undo) — CENTRALISÉ ICI */}
-              <PendingUndoPanel
-                items={pendingHandled.map((o) => ({
-                  id: o.id,
-                  title: o.typeLabel,
-                  priorityLabel: o.priorityLabel,
-                  valueCents: o.valueCents,
-                  handledAtISO: o.handledAt ?? o.createdAt,
-                  detail: o.detail,
-                }))}
-              />
-
-              {/* Confirmé */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold">
-                      Activité récente (confirmé)
-                    </h3>
-                    <p className="text-xs text-slate-300/70">
-                      Actions traitées et confirmées (la fenêtre Undo est passée).
-                    </p>
-                  </div>
-                  <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-1 text-slate-200">
-                    {confirmedHandled.length}
-                  </span>
-                </div>
-
-                {confirmedHandled.length === 0 ? (
-                  <div className="mt-3 text-sm text-slate-300/60">
-                    Rien de confirmé pour l’instant.
-                  </div>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    {confirmedHandled.slice(0, 8).map((o) => (
-                      <div
-                        key={o.findingId}
-                        className="rounded-xl border border-white/10 bg-slate-950/40 p-3"
-                      >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-100">
-                            {o.typeLabel}
-                          </span>
-                          <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-slate-200">
-                            {o.priorityLabel}
-                          </span>
-                          {o.valueCents > 0 && (
-                            <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-slate-200">
-                              {formatMoney(o.valueCents)}
-                            </span>
-                          )}
-                          <span className="text-[11px] text-slate-300/60">
-                            {new Date(
-                              o.handledAt ?? o.createdAt
-                            ).toLocaleString("fr-CA")}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-xs text-slate-300/70 line-clamp-2">
-                          {o.detail}
-                        </div>
-                      </div>
-                    ))}
-
-                    {confirmedHandled.length > 8 && (
-                      <div className="text-xs text-slate-300/60">
-                        +{confirmedHandled.length - 8} autre(s) confirmé(s)…
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3 className="text-base font-semibold">Historique des audits</h3>
-                <AuditRunsTable runs={runs} />
-              </div>
-            </section>
-
-            {/* ✅ Accueil relégué en footer discret (non concurrent) */}
-            <div className="pt-2">
-              <Link
-                href="/"
-                className="text-xs text-slate-300/60 hover:text-slate-200"
-              >
-                ← Accueil
-              </Link>
-            </div>
-          </section>
-
-          {/* RIGHT — toujours visible */}
-          <aside className="lg:sticky lg:top-6 self-start">
+          {/* RIGHT — en premier sur mobile */}
+          <aside className="order-first lg:order-last lg:sticky lg:top-6 self-start">
             <NextBestActionClient
               opportunity={currentOpp as any}
               ageDays={ageDays}
@@ -429,6 +326,226 @@ export default async function AuditPage({
               allHref={allHref}
             />
           </aside>
+
+          {/* LEFT */}
+          <section className="order-last lg:order-first space-y-8 min-w-0">
+            <div id="opportunities-section" className="min-w-0">
+              <RecoveryFindingsPanel
+                findings={findingsLastRun as any}
+                highlightFindingId={currentOpp?.findingId ?? null}
+                highlightType={currentOpp?.typeCode ?? null}
+              />
+            </div>
+
+            <section id="historique" className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Historique</h2>
+
+                {/* ✅ Chips compact mobile */}
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-200">
+                    Undo: {pendingHandled.length}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-200">
+                    Confirmé: {confirmedHandled.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* ✅ MOBILE: collapsé (gros gain de scroll) */}
+              <div className="sm:hidden space-y-3">
+                <details className="rounded-2xl border border-white/10 bg-white/5 p-4" open={pendingHandled.length > 0}>
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">En attente (Undo)</p>
+                        <p className="text-xs text-slate-300/70">
+                          Annulable ~5 minutes.
+                        </p>
+                      </div>
+                      <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-1 text-slate-200">
+                        {pendingHandled.length}
+                      </span>
+                    </div>
+                  </summary>
+
+                  <div className="mt-3">
+                    <PendingUndoPanel
+                      items={pendingHandled.map((o) => ({
+                        id: o.id,
+                        title: o.typeLabel,
+                        priorityLabel: o.priorityLabel,
+                        valueCents: o.valueCents,
+                        handledAtISO: o.handledAt ?? o.createdAt,
+                        detail: o.detail,
+                      }))}
+                    />
+                  </div>
+                </details>
+
+                <details className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Activité récente</p>
+                        <p className="text-xs text-slate-300/70">
+                          Confirmé (Undo passé).
+                        </p>
+                      </div>
+                      <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-1 text-slate-200">
+                        {confirmedHandled.length}
+                      </span>
+                    </div>
+                  </summary>
+
+                  <div className="mt-3">
+                    {confirmedHandled.length === 0 ? (
+                      <div className="text-sm text-slate-300/60">
+                        Rien de confirmé pour l’instant.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {confirmedHandled.slice(0, 6).map((o) => (
+                          <div
+                            key={o.findingId}
+                            className="rounded-xl border border-white/10 bg-slate-950/40 p-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-100">
+                                {o.typeLabel}
+                              </span>
+                              <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-slate-200">
+                                {o.priorityLabel}
+                              </span>
+                              {o.valueCents > 0 && (
+                                <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-slate-200">
+                                  {formatMoney(o.valueCents)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-300/70 line-clamp-2">
+                              {o.detail}
+                            </div>
+                          </div>
+                        ))}
+                        {confirmedHandled.length > 6 && (
+                          <div className="text-xs text-slate-300/60">
+                            +{confirmedHandled.length - 6} autre(s)…
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </details>
+
+                <details className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Historique des audits</p>
+                        <p className="text-xs text-slate-300/70">Voir les runs.</p>
+                      </div>
+                      <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-1 text-slate-200">
+                        {runs.length}
+                      </span>
+                    </div>
+                  </summary>
+
+                  <div className="mt-3">
+                    <AuditRunsTable runs={runs} />
+                  </div>
+                </details>
+              </div>
+
+              {/* ✅ DESKTOP: inchangé (toujours ouvert) */}
+              <div className="hidden sm:block space-y-3">
+                <PendingUndoPanel
+                  items={pendingHandled.map((o) => ({
+                    id: o.id,
+                    title: o.typeLabel,
+                    priorityLabel: o.priorityLabel,
+                    valueCents: o.valueCents,
+                    handledAtISO: o.handledAt ?? o.createdAt,
+                    detail: o.detail,
+                  }))}
+                />
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">
+                        Activité récente (confirmé)
+                      </h3>
+                      <p className="text-xs text-slate-300/70">
+                        Actions traitées et confirmées (la fenêtre Undo est passée).
+                      </p>
+                    </div>
+                    <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-1 text-slate-200">
+                      {confirmedHandled.length}
+                    </span>
+                  </div>
+
+                  {confirmedHandled.length === 0 ? (
+                    <div className="mt-3 text-sm text-slate-300/60">
+                      Rien de confirmé pour l’instant.
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {confirmedHandled.slice(0, 8).map((o) => (
+                        <div
+                          key={o.findingId}
+                          className="rounded-xl border border-white/10 bg-slate-950/40 p-3"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-100">
+                              {o.typeLabel}
+                            </span>
+                            <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-slate-200">
+                              {o.priorityLabel}
+                            </span>
+                            {o.valueCents > 0 && (
+                              <span className="text-[11px] rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-slate-200">
+                                {formatMoney(o.valueCents)}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-slate-300/60">
+                              {new Date(
+                                o.handledAt ?? o.createdAt
+                              ).toLocaleString("fr-CA")}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-300/70 line-clamp-2">
+                            {o.detail}
+                          </div>
+                        </div>
+                      ))}
+
+                      {confirmedHandled.length > 8 && (
+                        <div className="text-xs text-slate-300/60">
+                          +{confirmedHandled.length - 8} autre(s) confirmé(s)…
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="text-base font-semibold">Historique des audits</h3>
+                  <AuditRunsTable runs={runs} />
+                </div>
+              </div>
+
+              {/* ✅ Accueil relégué en footer discret */}
+              <div className="pt-2">
+                <Link
+                  href="/"
+                  className="text-xs text-slate-300/60 hover:text-slate-200"
+                >
+                  ← Accueil
+                </Link>
+              </div>
+            </section>
+          </section>
         </div>
       </div>
     </main>
