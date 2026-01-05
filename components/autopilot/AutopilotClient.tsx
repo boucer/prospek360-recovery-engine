@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Item = {
@@ -20,9 +20,9 @@ function sleep(ms: number) {
 }
 
 function getReason(item: Item) {
-  // 1 seule raison, toujours.
   if (item.severity >= 8) return "Impact estimé élevé";
-  if (item.valueCents && item.valueCents >= 5000) return "Opportunité sensible au temps";
+  if (item.valueCents && item.valueCents >= 5000)
+    return "Opportunité sensible au temps";
   return "Action prioritaire détectée";
 }
 
@@ -36,12 +36,8 @@ export default function AutopilotClient() {
   const current = queue[index] ?? null;
   const total = queue.length;
   const remaining = Math.max(total - index, 0);
-
-  const progress = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
-
-  /* -----------------------------
-     API helpers
-  ----------------------------- */
+  const progress =
+    total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
 
   async function fetchQueue() {
     setPhase("analyzing");
@@ -50,8 +46,7 @@ export default function AutopilotClient() {
     setQueue(data.items ?? []);
     setIndex(0);
     setTotalRecovered(0);
-
-    await sleep(350); // micro-latence = perception d’analyse
+    await sleep(300);
     setPhase((data.items ?? []).length > 0 ? "deciding" : "idle");
   }
 
@@ -67,8 +62,7 @@ export default function AutopilotClient() {
     if (!current) return;
     setLoading(true);
     setPhase("executing");
-
-    await sleep(450); // micro-latence = perception d’exécution
+    await sleep(400);
 
     await fetch("/api/recovery/autopilot-execute", {
       method: "POST",
@@ -77,41 +71,12 @@ export default function AutopilotClient() {
     });
 
     setTotalRecovered((v) => v + (current.valueCents ?? 0));
-    setIndex((i) => i + 1);
-    setLoading(false);
-
-    // Si on vient de traiter le dernier item
     const nextIndex = index + 1;
-    if (nextIndex >= total) {
-      setPhase("done");
-    } else {
-      await sleep(250);
-      setPhase("deciding");
-    }
-  }
-
-  async function undo() {
-    if (index === 0) return;
-    const prev = queue[index - 1];
-    if (!prev) return;
-
-    setLoading(true);
-    setPhase("executing");
-
-    await sleep(300);
-
-    await fetch("/api/recovery/autopilot-undo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: prev.id }),
-    });
-
-    setTotalRecovered((v) => v - (prev.valueCents ?? 0));
-    setIndex((i) => Math.max(i - 1, 0));
+    setIndex(nextIndex);
     setLoading(false);
 
     await sleep(200);
-    setPhase("deciding");
+    setPhase(nextIndex >= total ? "done" : "deciding");
   }
 
   function next() {
@@ -119,42 +84,47 @@ export default function AutopilotClient() {
     setPhase("deciding");
   }
 
-  /* -----------------------------
-     UI helpers (V1.2)
-  ----------------------------- */
-
+  /* ---------------- MOBILE HEADER ---------------- */
   const phaseLabel =
     phase === "analyzing"
       ? "Analyse du contexte…"
       : phase === "deciding"
       ? "Action prioritaire identifiée"
       : phase === "executing"
-      ? "Exécution de l’action…"
+      ? "Exécution en cours…"
       : phase === "done"
       ? "Auto-Pilot terminé"
       : "";
 
   return (
-    <div className="space-y-6">
-      {/* V1.2 — “Perception d’intelligence” (état cognitif discret) */}
-      {(phase !== "idle" && phase !== "done") && (
-        <div className="rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-white/60">{phaseLabel}</span>
-            {current && phase === "deciding" && (
-              <span className="text-xs text-white/50">{getReason(current)}</span>
-            )}
-          </div>
+    <div className="space-y-5">
+      {/* MOBILE HEADER */}
+      <div className="md:hidden rounded-xl border border-white/10 bg-slate-950/60 p-4">
+        <h1 className="text-lg font-semibold text-white">Auto-Pilot</h1>
+        <p className="mt-1 text-sm text-white/60">
+          Laisse le moteur choisir la prochaine action à plus fort impact.
+        </p>
+      </div>
+
+      {/* ÉTAT INTELLIGENT */}
+      {phase !== "idle" && phase !== "done" && (
+        <div className="rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3 flex justify-between">
+          <span className="text-xs text-white/60">{phaseLabel}</span>
+          {current && phase === "deciding" && (
+            <span className="text-xs text-white/50">
+              {getReason(current)}
+            </span>
+          )}
         </div>
       )}
 
-      {/* Progress */}
+      {/* PROGRESS */}
       <div className="rounded-xl border border-white/10 bg-slate-950/60 p-4">
-        <div className="flex justify-between text-sm text-white/70 mb-2">
+        <div className="flex justify-between text-xs text-white/60 mb-2">
           <span>Progression</span>
           <span>{progress}%</span>
         </div>
-        <div className="h-2 w-full rounded bg-white/10 overflow-hidden">
+        <div className="h-2 rounded bg-white/10 overflow-hidden">
           <div
             className="h-full bg-emerald-500 transition-all"
             style={{ width: `${progress}%` }}
@@ -170,47 +140,54 @@ export default function AutopilotClient() {
         </div>
       </div>
 
-      {/* No queue */}
+      {/* EMPTY */}
       {total === 0 && (
         <div className="rounded-xl border border-white/10 bg-slate-950/60 p-6 text-center">
-          <p className="text-white/60 mb-4">Aucune file générée.</p>
+          <p className="text-white/60 mb-4">
+            Aucune file Auto-Pilot active.
+          </p>
           <button
             onClick={generateQueue}
             disabled={loading}
-            className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
+            className="w-full rounded-xl bg-emerald-600 py-3 text-white font-semibold"
           >
             ⚡ Générer la file Auto-Pilot
           </button>
         </div>
       )}
 
-      {/* Current item */}
+      {/* CURRENT ITEM */}
       <AnimatePresence mode="wait">
         {current && (
           <motion.div
             key={current.id}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.25 }}
-            className="rounded-xl border border-white/10 bg-slate-950/70 p-6"
+            className="rounded-xl border border-white/10 bg-slate-950/70 p-5"
           >
-            <div className="flex justify-between items-start mb-3">
-              {/* V1.2 — Badge “Choix Auto-Pilot” */}
+            <div className="flex justify-between mb-3">
               <span className="text-xs px-2 py-1 rounded bg-white/10">
-                🧠 Choix Auto-Pilot · {current.type}
+                🧠 Choix Auto-Pilot
               </span>
-              <span className="text-xs text-white/60">Sévérité {current.severity}</span>
+              <span className="text-xs text-white/60">
+                Sévérité {current.severity}
+              </span>
             </div>
 
-            <h2 className="text-xl font-semibold text-white mb-1">{current.title}</h2>
+            <h2 className="text-lg font-semibold text-white mb-1">
+              {current.title}
+            </h2>
 
-            {/* V1.2 — Raison unique */}
-            <p className="text-sm text-white/50 mb-3">{getReason(current)}</p>
+            <p className="text-sm text-white/50 mb-3">
+              {getReason(current)}
+            </p>
 
             {current.valueCents && (
               <p className="text-sm text-white/60 mb-4">
-                Valeur estimée : {(current.valueCents / 100).toFixed(2)} $
+                Valeur estimée :{" "}
+                {(current.valueCents / 100).toFixed(2)} $
               </p>
             )}
 
@@ -218,49 +195,30 @@ export default function AutopilotClient() {
               <button
                 onClick={markHandled}
                 disabled={loading}
-                className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
+                className="flex-1 rounded-xl bg-emerald-600 py-3 text-white font-semibold"
               >
-                ✓ Marquer traité
+                ✓ Traiter
               </button>
-
               <button
                 onClick={next}
                 disabled={loading}
-                className="px-4 py-2 rounded bg-white/10 hover:bg-white/20 text-white"
+                className="rounded-xl bg-white/10 px-4 py-3 text-white"
               >
-                ⏭ Suivant
-              </button>
-
-              {/* ✅ Undo conservé */}
-              <button
-                onClick={undo}
-                disabled={loading || index === 0}
-                className="px-4 py-2 rounded bg-white/5 hover:bg-white/10 text-white/70"
-              >
-                ↩ Undo
+                ⏭
               </button>
             </div>
-
-            <p className="mt-4 text-xs text-white/40">
-              Continue. Chaque action récupère de la valeur.
-            </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* End */}
       {total > 0 && remaining === 0 && (
         <div className="rounded-xl border border-white/10 bg-slate-950/60 p-6 text-center">
-          <p className="text-white">
-            🎉 <strong>File terminée</strong>
+          <p className="text-white font-semibold">
+            🎉 Auto-Pilot terminé
           </p>
           <p className="text-sm text-white/60 mt-1">
-  Résumé Auto-Pilot : {total} analysées ·{" "}
-  {totalRecovered > 0
-    ? "Actions exécutées avec impact"
-    : "Aucune action exécutée (validation manuelle requise)."}
-</p>
-
+            {total} actions analysées · Impact cumulé généré
+          </p>
         </div>
       )}
     </div>
