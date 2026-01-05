@@ -1,519 +1,316 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import type { AutoPilotContext } from "@/lib/autopilot/types";
+import AutoPilotButton, { type AutoPilotResult } from "./AutoPilotButton";
 
-type Item = {
-  id: string;
-  type: string;
-  severity: number;
-  title: string;
-  description?: string;
-  action?: string;
-  valueCents?: number;
-};
+/* =========================
+   Utils
+========================= */
 
-type Phase = "idle" | "analyzing" | "deciding" | "executing" | "done";
+const AUTOPILOT_STORAGE_KEY = "prospek360.autopilot.lastResult";
 
-function money(cents?: number) {
-  const v = Math.round((cents ?? 0) / 100);
-  return `${v.toLocaleString("fr-CA")} $`;
+function getIsPremiumFromUrl() {
+  if (typeof window === "undefined") return false;
+  const sp = new URLSearchParams(window.location.search);
+  return sp.get("premium") === "1";
 }
 
-function pillForPhase(phase: Phase) {
-  switch (phase) {
-    case "analyzing":
-      return { label: "Analyse", cls: "bg-white/5 border-white/10 text-white/80" };
-    case "deciding":
-      return { label: "Décision", cls: "bg-white/5 border-white/10 text-white/80" };
-    case "executing":
-      return { label: "Exécution", cls: "bg-[#c33541]/15 border-[#c33541]/35 text-white" };
-    case "done":
-      return { label: "Terminé", cls: "bg-emerald-400/10 border-emerald-400/25 text-white" };
-    default:
-      return { label: "Prêt", cls: "bg-white/5 border-white/10 text-white/80" };
+function buildSafeCtxFromUrl(): AutoPilotContext {
+  const sp =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const opportunityId = sp?.get("opportunityId") || "autopilot-global";
+  const findingId = sp?.get("findingId") || undefined;
+
+  return {
+    opportunityId,
+    findingId,
+    contact: { email: "", phone: "" },
+  } as AutoPilotContext;
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <p className="text-xs text-white/60">{label}</p>
+      <p className="mt-1 text-lg font-extrabold text-white">{value}</p>
+    </div>
+  );
+}
+
+function formatMoneyCad(value: number) {
+  try {
+    return new Intl.NumberFormat("fr-CA", {
+      style: "currency",
+      currency: "CAD",
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return `$${Math.round(value)}`;
   }
 }
 
-async function safeJson(res: Response) {
+function readStoredResult(): AutoPilotResult | null {
+  if (typeof window === "undefined") return null;
   try {
-    return await res.json();
+    const raw = localStorage.getItem(AUTOPILOT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as AutoPilotResult) : null;
   } catch {
     return null;
   }
 }
 
-function extractArray(payload: any): any[] {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload.queue)) return payload.queue;
-  if (Array.isArray(payload.items)) return payload.items;
-  if (Array.isArray(payload.data)) return payload.data;
-  return [];
+function writeStoredResult(r: AutoPilotResult) {
+  try {
+    localStorage.setItem(AUTOPILOT_STORAGE_KEY, JSON.stringify(r));
+  } catch {}
 }
 
+function clearStoredResult() {
+  try {
+    localStorage.removeItem(AUTOPILOT_STORAGE_KEY);
+  } catch {}
+}
+
+/* =========================
+   Component
+========================= */
+
 export default function AutopilotClient() {
-  const [queue, setQueue] = useState<Item[]>([]);
-  const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [busy, setBusy] = useState(false);
-  const [totalRecoveredCents, setTotalRecoveredCents] = useState(0);
-  const [log, setLog] = useState<
-    { ts: number; label: string; sub?: string; kind?: "ok" | "warn" | "info" }[]
-  >([]);
+  const [isPremium, setIsPremium] = useState(false);
+  const [ctx, setCtx] = useState<AutoPilotContext | null>(null);
 
-  const current = queue[index] ?? null;
-  const total = queue.length;
-  const remaining = Math.max(total - index, 0);
-  const progress = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
-
-  const phasePill = pillForPhase(phase);
-
-  const nextTitle = useMemo(() => {
-    if (!current) return "Aucune action prioritaire";
-    return current.title || "Action à exécuter";
-  }, [current]);
-
-  const nextValue = useMemo(() => money(current?.valueCents), [current?.valueCents]);
-
-  function pushLog(entry: { label: string; sub?: string; kind?: "ok" | "warn" | "info" }) {
-    setLog((prev) => [{ ts: Date.now(), ...entry }, ...prev].slice(0, 12));
-  }
-
-  async function generateQueue() {
-    setBusy(true);
-    setPhase("analyzing");
-    pushLog({ label: "Analyse en cours…", kind: "info" });
-
-    try {
-      const res = await fetch("/api/recovery/autopilot-queue", { method: "POST" });
-      const payload = await safeJson(res);
-      const arr = extractArray(payload);
-
-      const items: Item[] = arr
-        .filter(Boolean)
-        .map((x: any) => ({
-          id: String(x.id),
-          type: String(x.type ?? "UNKNOWN"),
-          severity: Number(x.severity ?? 0),
-          title: String(x.title ?? "Action"),
-          description: x.description ? String(x.description) : undefined,
-          action: x.action ? String(x.action) : undefined,
-          valueCents: typeof x.valueCents === "number" ? x.valueCents : undefined,
-        }));
-
-      setQueue(items);
-      setIndex(0);
-
-      setPhase(items.length ? "deciding" : "done");
-      pushLog({
-        label: items.length ? "File prête" : "Rien à traiter",
-        sub: items.length ? `${items.length} action(s) dans la file` : "Pipeline déjà clean",
-        kind: items.length ? "ok" : "info",
-      });
-    } catch (e: any) {
-      setPhase("idle");
-      pushLog({ label: "Erreur lors de l’analyse", sub: String(e?.message ?? e), kind: "warn" });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function executeCurrent() {
-    if (!current || busy) return;
-
-    setBusy(true);
-    setPhase("executing");
-
-    try {
-      const res = await fetch("/api/recovery/autopilot-execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: current.id }),
-      });
-
-      const payload = await safeJson(res);
-      const recoveredCents =
-        (typeof payload?.recoveredCents === "number" ? payload.recoveredCents : null) ??
-        (typeof payload?.valueCents === "number" ? payload.valueCents : null) ??
-        (current.valueCents ?? 0);
-
-      setTotalRecoveredCents((v) => v + (recoveredCents ?? 0));
-
-      pushLog({
-        label: "Action exécutée",
-        sub: `${current.title} • +${money(recoveredCents ?? 0)}`,
-        kind: "ok",
-      });
-
-      // Next item
-      const nextIndex = index + 1;
-      setIndex(nextIndex);
-
-      if (nextIndex >= queue.length) {
-        setPhase("done");
-        pushLog({ label: "Auto-Pilot terminé", sub: "File complétée", kind: "ok" });
-      } else {
-        setPhase("deciding");
-      }
-    } catch (e: any) {
-      setPhase("deciding");
-      pushLog({ label: "Erreur d’exécution", sub: String(e?.message ?? e), kind: "warn" });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function skipCurrent() {
-    if (!current || busy) return;
-    pushLog({ label: "Action ignorée", sub: current.title, kind: "info" });
-
-    const nextIndex = index + 1;
-    setIndex(nextIndex);
-
-    if (nextIndex >= queue.length) {
-      setPhase("done");
-      pushLog({ label: "Auto-Pilot terminé", sub: "File complétée", kind: "ok" });
-    } else {
-      setPhase("deciding");
-    }
-  }
-
-  async function undoLast() {
-    if (busy) return;
-    setBusy(true);
-
-    try {
-      const res = await fetch("/api/recovery/autopilot-undo", { method: "POST" });
-      const payload = await safeJson(res);
-
-      const msg =
-        typeof payload?.message === "string"
-          ? payload.message
-          : "Dernière action annulée (si disponible).";
-
-      pushLog({ label: "Undo", sub: msg, kind: "info" });
-      // Après undo, on régénère la file pour refléter l’état DB sans guess.
-      await generateQueue();
-    } catch (e: any) {
-      pushLog({ label: "Undo impossible", sub: String(e?.message ?? e), kind: "warn" });
-    } finally {
-      setBusy(false);
-    }
-  }
+  // ✅ V1.4: hydrate depuis localStorage dès le rendu client
+  const [result, setResult] = useState<AutoPilotResult | null>(() => readStoredResult());
 
   useEffect(() => {
-    // Auto-load
-    generateQueue();
+    setIsPremium(getIsPremiumFromUrl());
+    setCtx(buildSafeCtxFromUrl());
+
+    // Optionnel: si le state init n'a rien (SSR/client edge cases),
+    // on tente une seconde lecture.
+    if (!result) {
+      const stored = readStoredResult();
+      if (stored) setResult(stored);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const showMobileSticky = true; // ⚠️ un seul sticky dans toute la page
+  const isBlocked = !!result?.blockReason;
+
+  const assistantStatus = useMemo(() => {
+    if (!result) return { label: "Assistant prêt", tone: "idle" as const };
+    if (isBlocked) return { label: "Action requise", tone: "warning" as const };
+    return { label: "Travail terminé", tone: "success" as const };
+  }, [result, isBlocked]);
+
+  const valueEstimate = useMemo(() => {
+    if (!result || isBlocked) return null;
+    const recoveredValue = result.recoveredOpportunities * 250;
+    return {
+      recoveredValueLabel: formatMoneyCad(recoveredValue),
+      confidence: isPremium ? "Haute" : "Moyenne",
+    };
+  }, [result, isBlocked, isPremium]);
+
+  if (!ctx) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <p className="text-sm text-white/80">Préparation de l’assistant…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* HERO */}
-      <div
-        className="
-          rounded-2xl border
-          bg-slate-950/60 backdrop-blur
-          border-[rgba(195,53,65,0.45)]
-          shadow-[0_0_0_3px_rgba(195,53,65,0.10)]
-          p-5
-        "
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+      <div className="relative overflow-hidden rounded-2xl border border-rose-500/35 bg-gradient-to-b from-slate-950 to-slate-950/60 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            {/* Badges */}
             <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${phasePill.cls}`}
-              >
-                {phasePill.label}
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+                Auto-Pilot
               </span>
 
-              <span className="text-xs text-white/50">
-                {total === 0 ? "—" : `${progress}% • ${remaining} restant`}
+              {/* Assistant status */}
+              <span
+                className={[
+                  "rounded-full px-3 py-1 text-xs font-semibold border",
+                  assistantStatus.tone === "success" &&
+                    "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
+                  assistantStatus.tone === "warning" &&
+                    "border-amber-300/30 bg-amber-300/10 text-amber-100",
+                  assistantStatus.tone === "idle" &&
+                    "border-white/10 bg-white/5 text-white/70",
+                ].join(" ")}
+              >
+                {assistantStatus.label}
               </span>
             </div>
 
-            <h2 className="mt-3 text-xl font-semibold text-white">
-              Continuer l’action recommandée
+            <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-white">
+              Ton assistant s’occupe des actions Recovery importantes.
             </h2>
 
-            <p className="mt-1 text-sm text-white/60">
-              Auto-Pilot prend la prochaine opportunité Recovery et te guide en exécution.
+            <p className="mt-2 max-w-2xl text-sm text-white/70">
+              {isPremium
+                ? "Mode Premium : l’assistant agit, vérifie et te résume la valeur."
+                : "Mode gratuit : aperçu guidé. Débloque Premium pour une prise en charge complète."}
             </p>
-          </div>
 
-          <div className="text-right">
-            <div className="text-xs text-white/50">Total récupéré</div>
-            <div className="text-2xl font-semibold text-white">
-              {money(totalRecoveredCents)}
+            <div className="mt-5">
+              <AutoPilotButton
+                ctx={ctx}
+                onDone={(r) => {
+                  setResult(r);
+                  writeStoredResult(r); // ✅ V1.4: persiste
+                }}
+              />
             </div>
-          </div>
-        </div>
 
-        {/* Progress bar */}
-        <div className="mt-4 h-2 w-full rounded-full bg-white/5 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-[#c33541]/70"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            onClick={generateQueue}
-            disabled={busy}
-            className="
-              rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold
-              text-white hover:bg-white/10 disabled:opacity-50
-            "
-          >
-            Rafraîchir la file
-          </button>
-
-          <button
-            onClick={undoLast}
-            disabled={busy}
-            className="
-              rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold
-              text-white hover:bg-white/10 disabled:opacity-50
-            "
-          >
-            Undo
-          </button>
-        </div>
-      </div>
-
-      {/* NEXT STEP CARD */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={current?.id ?? "empty"}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.18 }}
-          className="
-            rounded-2xl border border-white/10
-            bg-white/5 backdrop-blur
-            p-5
-          "
-        >
-          {!current ? (
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  Rien à exécuter pour l’instant
-                </div>
-                <div className="mt-1 text-sm text-white/60">
-                  Ton pipeline est “propre”. Relance un scan plus tard.
-                </div>
-              </div>
-
-              <a
-                href="/audit"
-                className="
-                  rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold
-                  text-white hover:bg-white/10
-                "
-              >
-                Ouvrir Audit
-              </a>
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-xs text-white/50">
-                    Prochaine action • {current.type} • Sévérité {current.severity}
-                  </div>
-
-                  <div className="mt-2 text-lg font-semibold text-white">{nextTitle}</div>
-
-                  {current.description ? (
-                    <div className="mt-2 text-sm text-white/70">{current.description}</div>
-                  ) : null}
-
-                  {current.action ? (
-                    <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/40 p-3 text-sm text-white/75">
-                      <div className="text-xs font-semibold text-white/70 mb-1">
-                        Action suggérée
-                      </div>
-                      {current.action}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <div className="text-xs text-white/50">Valeur</div>
-                  <div className="mt-1 text-xl font-semibold text-white">{nextValue}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
+            {/* ✅ V1.4: control pour effacer */}
+            {result && (
+              <div className="mt-3">
                 <button
-                  onClick={executeCurrent}
-                  disabled={busy}
-                  className="
-                    rounded-xl bg-[#c33541] px-5 py-2.5 text-sm font-semibold text-white
-                    shadow-[0_10px_30px_rgba(195,53,65,0.25)]
-                    hover:brightness-110 active:scale-[0.98] disabled:opacity-60
-                  "
+                  type="button"
+                  onClick={() => {
+                    setResult(null);
+                    clearStoredResult();
+                  }}
+                  className="text-xs text-white/50 hover:text-white/80 underline"
                 >
-                  Exécuter maintenant
+                  Effacer le dernier résultat
                 </button>
-
-                <button
-                  onClick={skipCurrent}
-                  disabled={busy}
-                  className="
-                    rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold
-                    text-white hover:bg-white/10 disabled:opacity-50
-                  "
-                >
-                  Passer
-                </button>
-
-                <a
-                  href="/audit"
-                  className="
-                    rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold
-                    text-white hover:bg-white/10
-                  "
-                >
-                  Ouvrir Audit
-                </a>
               </div>
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
+            )}
 
-      {/* QUEUE */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-white">File Auto-Pilot</div>
-            <div className="text-xs text-white/50">
-              {total === 0 ? "Aucune action" : `${total} action(s) • ${remaining} restant`}
-            </div>
-          </div>
-
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-            {progress}%
-          </span>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {queue.length === 0 ? (
-            <div className="text-sm text-white/60">—</div>
-          ) : (
-            queue.slice(index, index + 6).map((it, i) => {
-              const isNow = i === 0;
-              return (
-                <div
-                  key={it.id}
-                  className={[
-                    "rounded-xl border p-3",
-                    isNow
-                      ? "border-[rgba(195,53,65,0.40)] bg-slate-950/40"
-                      : "border-white/10 bg-slate-950/20",
-                  ].join(" ")}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs text-white/50">
-                        {isNow ? "Maintenant" : "À venir"} • {it.type} • sev {it.severity}
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-white truncate">
-                        {it.title}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-sm font-semibold text-white/90">
-                      {money(it.valueCents)}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* LOG */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <div className="text-sm font-semibold text-white">Journal</div>
-        <div className="mt-3 space-y-2">
-          {log.length === 0 ? (
-            <div className="text-sm text-white/60">—</div>
-          ) : (
-            log.map((e) => (
+            {/* ===== RESULT ZONE (animated) ===== */}
+            {result && (
               <div
-                key={e.ts}
-                className="rounded-xl border border-white/10 bg-slate-950/20 p-3"
+                className={[
+                  "mt-4 transition-all duration-500 ease-out",
+                  "animate-[fadeInUp_0.5s_ease-out]",
+                ].join(" ")}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-white">{e.label}</div>
-                  <div className="text-xs text-white/40">
-                    {new Date(e.ts).toLocaleTimeString("fr-CA", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                </div>
-                {e.sub ? <div className="mt-1 text-sm text-white/70">{e.sub}</div> : null}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+                {/* BLOCKED */}
+                {isBlocked && (
+                  <div className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-5">
+                    <p className="text-sm font-semibold text-amber-100">
+                      L’assistant a besoin de toi
+                    </p>
+                    <p className="mt-1 text-xs text-amber-100/75">
+                      Une information manque avant de poursuivre automatiquement.
+                    </p>
 
-      {/* ✅ UN SEUL sticky mobile (pas de doublon) */}
-      {showMobileSticky ? (
-        <div className="md:hidden fixed left-0 right-0 bottom-0 z-50 pb-[env(safe-area-inset-bottom)]">
-          <div className="mx-auto max-w-[1500px] px-4 pb-4">
-            <div
-              className="
-                rounded-2xl border
-                bg-slate-950/95 backdrop-blur
-                border-[rgba(195,53,65,0.55)]
-                shadow-[0_0_0_3px_rgba(195,53,65,0.10)]
-                px-4 py-3
-              "
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold truncate text-white">
-                    {current ? "Continuer Auto-Pilot" : "Auto-Pilot"}
+                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                      <ul className="space-y-1 text-xs text-white/70">
+                        {result.logs.map((l, i) => (
+                          <li key={i}>{l}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  <div className="text-xs text-white/60 truncate">
-                    {current ? "Exécuter l’action maintenant" : "Aucune action prioritaire"}
-                  </div>
-                </div>
+                )}
 
-                <button
-                  onClick={executeCurrent}
-                  disabled={!current || busy}
-                  className="
-                    shrink-0 px-4 py-2 rounded-xl
-                    bg-[#c33541] text-white
-                    text-sm font-semibold
-                    shadow-[0_10px_30px_rgba(195,53,65,0.25)]
-                    hover:brightness-110 active:scale-[0.98]
-                    disabled:opacity-60
-                  "
-                >
-                  Continuer
-                </button>
+                {/* SUCCESS */}
+                {!isBlocked && (
+                  <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <p className="text-sm font-semibold text-emerald-100">
+                        L’assistant a fait le travail
+                      </p>
+
+                      {valueEstimate && (
+                        <span className="rounded-xl border border-emerald-400/30 bg-black/20 px-3 py-1 text-xs text-emerald-100">
+                          Valeur estimée :{" "}
+                          <strong>{valueEstimate.recoveredValueLabel}</strong>{" "}
+                          <span className="opacity-70">
+                            (confiance {valueEstimate.confidence})
+                          </span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <Stat label="Actions traitées" value={`${result.executedSteps}`} />
+                      <Stat label="Temps économisé" value={`~${result.timeSavedMin} min`} />
+                      <Stat
+                        label="Opportunités récupérées"
+                        value={`${result.recoveredOpportunities}`}
+                      />
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                      <p className="text-xs font-semibold text-white/80">
+                        Journal de l’assistant
+                      </p>
+                      <ul className="mt-2 space-y-1 text-xs text-white/70">
+                        {result.logs.map((l, i) => (
+                          <li key={i}>{l}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
+
+            {!isPremium && (
+              <div className="mt-4 max-w-2xl rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
+                <p className="text-sm font-semibold text-amber-100">Mode gratuit</p>
+                <p className="mt-1 text-xs text-amber-100/75">
+                  L’assistant te montre ce qu’il ferait. En Premium, il agit pour toi.
+                </p>
+                <div className="mt-3">
+                  <a
+                    href="/premium"
+                    className="inline-flex items-center rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-200"
+                  >
+                    Débloquer Premium
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SIDE CARD */}
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p className="text-xs font-semibold text-white/75">
+              Comment l’assistant travaille
+            </p>
+            <ul className="mt-2 space-y-2 text-xs text-white/65">
+              <li>• Analyse la situation actuelle</li>
+              <li>• Décide quoi faire en priorité</li>
+              <li>• Agit sans risque</li>
+              <li>• Te résume l’impact</li>
+            </ul>
+
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+              <p className="text-[11px] text-white/60">
+                Contexte :{" "}
+                <span className="text-white/80">
+                  {ctx.findingId || ctx.opportunityId}
+                </span>
+              </p>
             </div>
           </div>
         </div>
-      ) : null}
+      </div>
 
-      {/* spacer pour sticky */}
-      <div className="h-24 md:h-0" />
+      {/* keyframes */}
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

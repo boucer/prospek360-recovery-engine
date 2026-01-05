@@ -10,30 +10,24 @@ const WOW_OUT_MS = 220;
 const SPARK_MS = 420;
 
 const LAST_ACTION_STORAGE_KEY = "recovery:lastActionAt";
+const LAST_ACTION_SUMMARY_KEY = "recovery:lastActionSummary";
 const RECENT_ACTION_TOAST_WINDOW_MS = 10_000;
 const JUST_CLEARED_OPPORTUNITY_KEY = "recovery:justCleared";
 
 const TOAST_MS_INFO = 1800;
-const TOAST_MS_COPY = 2000;
-const TOAST_MS_PROGRESS = 1600;
-const TOAST_MS_ERROR = 2600;
-const TOAST_MS_HANDLED = 3200;
-const TOAST_MS_CLEARED = 3800;
+const TOAST_MS_HANDLED = 2200;
+const TOAST_MS_ERROR = 2000;
+const TOAST_MS_PROGRESS = 2000;
+const TOAST_MS_CLEARED = 2200;
 
-function getOpportunityId(opp: any): string | null {
-  const id =
-    opp?.id ??
-    opp?.findingId ??
-    opp?.recoveryFindingId ??
-    opp?.recoveryId ??
-    opp?.opportunityId;
-
-  return typeof id === "string" && id.trim().length > 0 ? id : null;
+function emitToast(message: string, ms = TOAST_MS_INFO) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("recovery:toast", { detail: { message, ms } }));
 }
 
 export default function NextBestActionClient({
   opportunity,
-  ageDays, // ✅ AJOUTÉ (optionnel)
+  ageDays,
   prevHref,
   nextHref,
   urgentHref,
@@ -41,55 +35,63 @@ export default function NextBestActionClient({
   allHref,
 }: {
   opportunity: Opportunity | null;
-  ageDays?: number; // ✅ AJOUTÉ (optionnel, safe)
-  prevHref: string;
-  nextHref: string;
-  urgentHref: string;
-  noreplyHref: string;
-  allHref: string;
-}) {
+
+  prevHref?: string;
+  nextHref?: string;
+  urgentHref?: string;
+  noreplyHref?: string;
+  allHref?: string;
+
+  ageDays?: number;
+})
+ {
   const router = useRouter();
+
+  const resolvedPrevHref = prevHref ?? "/audit?autoSelect=prev";
+const resolvedNextHref = nextHref ?? "/audit?autoSelect=next";
+const resolvedUrgentHref =
+  urgentHref ?? "/audit?focus=priority&autoSelect=top";
+const resolvedNoreplyHref =
+  noreplyHref ?? "/audit?focus=noreply&autoSelect=top";
+const resolvedAllHref = allHref ?? "/audit?autoSelect=top";
+
+
   const [busy, setBusy] = useState(false);
   const [wow, setWow] = useState<"idle" | "successFlash" | "exit">("idle");
   const [lastActionAt, setLastActionAt] = useState<number | null>(null);
+  const [lastActionSummary, setLastActionSummary] = useState<string | null>(null);
 
-  const initialPrevHad =
-    typeof window !== "undefined" &&
-    (() => {
-      try {
-        return localStorage.getItem(JUST_CLEARED_OPPORTUNITY_KEY) === "1";
-      } catch {
-        return false;
-      }
-    })()
-      ? true
-      : Boolean(opportunity);
-
-  const prevHadOpportunityRef = useRef<boolean>(initialPrevHad);
+  const prevHadOpportunityRef = useRef<boolean>(Boolean(opportunity));
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LAST_ACTION_STORAGE_KEY);
-      if (!raw) return;
       const n = Number(raw);
       if (Number.isFinite(n) && n > 0) setLastActionAt(n);
     } catch {}
+
+    try {
+      const s = localStorage.getItem(LAST_ACTION_SUMMARY_KEY);
+      if (s) setLastActionSummary(s);
+    } catch {}
   }, []);
 
-  const setLastActionNow = () => {
+  const setLastActionNow = (summary?: string) => {
     const ts = Date.now();
     setLastActionAt(ts);
     try {
       localStorage.setItem(LAST_ACTION_STORAGE_KEY, String(ts));
     } catch {}
+
+    if (summary) {
+      setLastActionSummary(summary);
+      try {
+        localStorage.setItem(LAST_ACTION_SUMMARY_KEY, summary);
+      } catch {}
+    }
   };
 
-  const emitToast = (message: string, ms = TOAST_MS_INFO) => {
-    window.dispatchEvent(
-      new CustomEvent("recovery:toast", { detail: { message, ms } })
-    );
-  };
-
+  // ✅ Quand la prochaine opportunity devient null: on garde le Hero en empty-state + message court
   useEffect(() => {
     const prevHad = prevHadOpportunityRef.current;
     const nowHas = Boolean(opportunity);
@@ -97,38 +99,32 @@ export default function NextBestActionClient({
     if (prevHad && !nowHas) {
       let justCleared = false;
       try {
-        justCleared =
-          localStorage.getItem(JUST_CLEARED_OPPORTUNITY_KEY) === "1";
+        justCleared = localStorage.getItem(JUST_CLEARED_OPPORTUNITY_KEY) === "1";
         if (justCleared) localStorage.removeItem(JUST_CLEARED_OPPORTUNITY_KEY);
       } catch {}
 
       if (justCleared) {
-        emitToast("🎯 Tu es à jour. Rien d’urgent.", TOAST_MS_CLEARED);
+        emitToast("🎯 Traité. Tu es à jour.", TOAST_MS_CLEARED);
       } else {
         const ts = lastActionAt ?? 0;
-        const isRecent =
-          ts > 0 && Date.now() - ts <= RECENT_ACTION_TOAST_WINDOW_MS;
-
-        if (isRecent) {
-          emitToast("🎯 Tu es à jour. Rien d’urgent.", TOAST_MS_CLEARED);
-        }
+        const isRecent = ts > 0 && Date.now() - ts <= RECENT_ACTION_TOAST_WINDOW_MS;
+        if (isRecent) emitToast("✅ Traité. Tu es à jour.", TOAST_MS_CLEARED);
       }
     }
+
+    // IMPORTANT: si plus d'opportunity, on reset wow -> idle (sinon opacity 0)
+    if (!nowHas) setWow("idle");
 
     prevHadOpportunityRef.current = nowHas;
   }, [opportunity, lastActionAt]);
 
   const scrollToHistory = () => {
     const el = document.getElementById("historique");
-    if (!el) {
-      window.location.hash = "historique";
-      return;
+    if (el) {
+      try {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {}
     }
-
-    try {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch {}
-
     window.location.hash = "historique";
   };
 
@@ -137,11 +133,11 @@ export default function NextBestActionClient({
     setBusy(true);
 
     try {
-      emitToast("🔁 Relance de l’audit en cours…", TOAST_MS_PROGRESS);
+      emitToast("🔁 Relance de l’audit…", TOAST_MS_PROGRESS);
       const res = await fetch("/api/audit/run", { method: "POST" });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error();
-      emitToast("✅ Audit relancé. Mise à jour…", TOAST_MS_PROGRESS);
+      emitToast("✅ Audit relancé.", TOAST_MS_PROGRESS);
       router.refresh();
     } catch {
       emitToast("❌ Impossible de relancer l’audit.", TOAST_MS_ERROR);
@@ -151,38 +147,52 @@ export default function NextBestActionClient({
   }
 
   async function copyMessage(opp: Opportunity) {
+    if (busy) return;
+    setBusy(true);
+
     try {
-      const text =
-        (opp as any)?.recommendedMessage ?? (opp as any)?.detail ?? "";
-      await navigator.clipboard.writeText(String(text));
-      emitToast("📋 Message copié ✅", TOAST_MS_COPY);
+      const o: any = opp as any;
+      const msg =
+        (o.message as string | undefined) ||
+        (o.suggestedMessage as string | undefined) ||
+        (o.copyText as string | undefined);
+
+      if (!msg) {
+        emitToast("ℹ️ Aucun message à copier.", TOAST_MS_INFO);
+        return;
+      }
+
+      await navigator.clipboard.writeText(msg);
+      emitToast("📋 Message copié.", TOAST_MS_INFO);
     } catch {
-      emitToast("❌ Impossible de copier le message.", TOAST_MS_ERROR);
+      emitToast("❌ Copie impossible.", TOAST_MS_ERROR);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function markHandled(opp: Opportunity) {
     if (busy) return;
-    const id = getOpportunityId(opp);
-    if (!id) {
-      emitToast("❌ ID introuvable.", TOAST_MS_ERROR);
-      return;
-    }
-
     setBusy(true);
+
     try {
-      const res = await fetch(`/api/recovery-findings/${id}/handle`, {
-        method: "POST",
-      });
+      const o: any = opp as any;
+      const id = (o.id ?? o.findingId ?? o.recoveryFindingId) as string | undefined;
+      if (!id) throw new Error("missing id");
+
+      setWow("successFlash");
+
+      const res = await fetch(`/api/recovery-findings/${id}/handle`, { method: "POST" });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error();
 
-      setLastActionNow();
+      // ✅ message court qui restera visible dans le Hero "empty-state"
+      setLastActionNow("✅ Dernière action : marqué comme traité.");
+
       try {
         localStorage.setItem(JUST_CLEARED_OPPORTUNITY_KEY, "1");
       } catch {}
 
-      setWow("successFlash");
       setTimeout(() => setWow("exit"), SPARK_MS);
       setTimeout(() => setWow("idle"), SPARK_MS + WOW_OUT_MS);
 
@@ -195,6 +205,7 @@ export default function NextBestActionClient({
     }
   }
 
+  // ✅ Toujours visible (même si opportunity null) — le Hero affiche alors l’empty-state
   const wowClass =
     wow === "idle"
       ? "opacity-100 translate-y-0"
@@ -212,7 +223,7 @@ export default function NextBestActionClient({
           onRunAudit={runAuditNow}
           onViewHistory={scrollToHistory}
           isBusy={busy}
-          lastActionAt={lastActionAt}
+          lastActionSummary={lastActionSummary}
         />
       </div>
 

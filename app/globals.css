@@ -78,3 +78,66 @@ body {
   animation: toastOutPremium 220ms ease-in;
 }
 
+/* =========================
+   PRINT / PDF OVERRIDES
+   ========================= */
+@media print {
+
+  /* 🔹 Supprimer la navigation / header */
+  header,
+  nav {
+    display: none !important;
+  }
+
+  /* 🔹 Base document */
+  body {
+    background: #ffffff !important;
+    color: #111827 !important; /* gris très foncé */
+  }
+
+  main {
+    background: #ffffff !important;
+  }
+
+  /* 🔹 Titres */
+  h1,
+  h2,
+  h3 {
+    color: #111827 !important;
+  }
+
+  /* 🔹 Texte général */
+  p,
+  span,
+  div {
+    color: #1f2937 !important; /* slate-800 */
+  }
+
+  /* 🔹 Cartes & sections */
+  section,
+  article,
+  div {
+    background: #ffffff !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* 🔹 Badges / pills */
+  .bg-emerald-500\/10,
+  .bg-slate-700\/40 {
+    background: #e5e7eb !important;
+    color: #111827 !important;
+  }
+
+  /* 🔹 Boutons & liens inutiles au PDF */
+  button,
+  a[href="/audit"] {
+    display: none !important;
+  }
+
+  /* 🔹 Marges A4 propres */
+  @page {
+    margin: 14mm;
+  }
+}
+
+

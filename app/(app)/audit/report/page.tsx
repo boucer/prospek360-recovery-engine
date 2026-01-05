@@ -1,4 +1,3 @@
-// app/audit/report/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import PrintReportButton from "@/components/audit/PrintReportButton";
@@ -8,7 +7,13 @@ function money(cents?: number | null) {
   return `${v.toLocaleString("fr-CA")} $`;
 }
 
-export default async function AuditLastReportPage() {
+export default async function AuditLastReportPage({
+  searchParams,
+}: {
+  searchParams?: { client?: string };
+}) {
+  const clientName = (searchParams?.client || "").trim() || "Client";
+
   const lastRun = await prisma.auditRun.findFirst({
     orderBy: { createdAt: "desc" },
     select: { id: true, createdAt: true },
@@ -16,22 +21,10 @@ export default async function AuditLastReportPage() {
 
   if (!lastRun) {
     return (
-      <main className="p-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Dernier rapport</h1>
-          <Link
-            href="/audit"
-            className="text-sm text-slate-700 underline underline-offset-4"
-          >
-            Retour à l’audit
-          </Link>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
-          <p className="text-slate-700">
-            Aucun rapport disponible pour l’instant. Lance un audit pour générer
-            un premier rapport.
-          </p>
+      <main className="mx-auto max-w-[1500px] p-6 space-y-6">
+        <h1 className="text-2xl font-semibold text-white">Dernier rapport</h1>
+        <div className="rounded-xl border border-white/10 bg-slate-950 p-6 text-slate-300">
+          Aucun rapport disponible pour l’instant.
         </div>
       </main>
     );
@@ -39,147 +32,200 @@ export default async function AuditLastReportPage() {
 
   const findings = await prisma.recoveryFinding.findMany({
     where: { auditRunId: lastRun.id },
-    orderBy: [{ severity: "desc" }, { valueCents: "desc" }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      type: true,
-      title: true,
-      description: true,
-      action: true,
-      severity: true,
-      handled: true,
-      handledAt: true,
-      valueCents: true,
-      createdAt: true,
-    },
+    orderBy: [{ severity: "desc" }, { valueCents: "desc" }],
   });
 
-  const total = findings.length;
   const treated = findings.filter((f) => f.handled).length;
-  const potential = findings.reduce(
-    (acc, f) => acc + (f.handled ? 0 : f.valueCents ?? 0),
-    0
-  );
   const recovered = findings.reduce(
     (acc, f) => acc + (f.handled ? f.valueCents ?? 0 : 0),
     0
   );
 
+  const untreated = findings.filter((f) => !f.handled);
+  const nextAction = untreated[0];
+
   return (
-    <main className="p-8 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Dernier rapport</h1>
-          <p className="text-sm text-slate-600">
-            Généré le{" "}
-            {new Date(lastRun.createdAt).toLocaleString("fr-CA", {
-              year: "numeric",
-              month: "short",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-        </div>
+    <main className="mx-auto max-w-[1500px] p-6 space-y-8">
+      {/* =========================
+          V1.2 — HEADER PDF (PRINT ONLY)
+         ========================= */}
+      <div className="hidden print:block border-b border-slate-200 pb-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img
+              src="/brand/prospek360.png"
+              alt="Prospek360"
+              className="h-8 w-auto"
+            />
+            <div>
+              <div className="text-sm font-semibold text-slate-900">
+                Rapport Recovery Engine
+              </div>
+              <div className="text-xs text-slate-600">
+                Client : {clientName}
+              </div>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-3">
-          {/* Client component (window.print) */}
-          <PrintReportButton />
-
-          <Link
-            href="/audit"
-            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-slate-900"
-          >
-            Retour à l’audit
-          </Link>
+          <div className="text-right">
+            <div className="text-xs text-slate-600">Date</div>
+            <div className="text-sm font-semibold text-slate-900">
+              {new Date(lastRun.createdAt).toLocaleDateString("fr-CA", {
+                year: "numeric",
+                month: "long",
+                day: "2-digit",
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500">Opportunités</div>
-          <div className="text-2xl font-semibold">{total}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500">Traitées</div>
-          <div className="text-2xl font-semibold">{treated}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500">Potentiel restant</div>
-          <div className="text-2xl font-semibold">{money(potential)}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500">Récupéré</div>
-          <div className="text-2xl font-semibold">{money(recovered)}</div>
-        </div>
-      </div>
+      {/* HERO – Résumé exécutif */}
+      <section className="rounded-2xl border-2 border-red-600 bg-slate-950 p-6 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">
+              Rapport — Résumé exécutif
+            </h1>
+            <p className="text-sm text-slate-400">
+              {treated} action{treated > 1 ? "s" : ""} traitée
+              {treated > 1 ? "s" : ""} · {money(recovered)} récupéré
+            </p>
+          </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <div className="text-sm font-semibold">Détails</div>
-          <div className="text-xs text-slate-500">
-            Trié par priorité (sévérité), puis valeur.
+          <div className="flex items-center gap-3">
+            <PrintReportButton />
+            <Link
+              href="/audit"
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+            >
+              ← Audit
+            </Link>
           </div>
         </div>
 
-        <div className="divide-y divide-slate-100">
-          {findings.map((f) => (
-            <div key={f.id} className="px-4 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        f.handled
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {f.handled ? "Traité" : "À traiter"}
-                    </span>
+        <p className="text-slate-300 text-sm">
+          Analyse complétée. Voici ce qui a changé depuis le dernier audit.
+        </p>
+      </section>
 
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-                      {f.type}
-                    </span>
+      {/* ACTIONS TRAITÉES */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-white">
+          ✔️ Actions traitées
+        </h2>
 
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-                      Sévérité {f.severity}
-                    </span>
-                  </div>
+        {findings.filter((f) => f.handled).length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-slate-900 p-4 text-slate-400">
+            Aucune action traitée pour l’instant.
+          </div>
+        )}
 
-                  <div className="mt-1 font-semibold">{f.title}</div>
-
-                  {f.description ? (
-                    <div className="mt-1 text-sm text-slate-600">
-                      {f.description}
-                    </div>
-                  ) : null}
-
-                  {f.action ? (
-                    <div className="mt-2 text-sm">
-                      <span className="font-medium">Reco :</span>{" "}
-                      <span className="text-slate-700">{f.action}</span>
-                    </div>
-                  ) : null}
+        {findings
+          .filter((f) => f.handled)
+          .map((f) => (
+            <div
+              key={f.id}
+              className="rounded-xl border border-white/10 bg-slate-900 p-4"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="font-semibold text-white">{f.title}</div>
+                  <div className="text-sm text-slate-400">{f.action}</div>
                 </div>
-
                 <div className="text-right">
-                  <div className="text-xs text-slate-500">Valeur</div>
-                  <div className="text-lg font-semibold">
+                  <div className="text-xs text-slate-400">Impact</div>
+                  <div className="text-lg font-semibold text-emerald-400">
                     {money(f.valueCents)}
                   </div>
                 </div>
               </div>
             </div>
           ))}
+      </section>
 
-          {findings.length === 0 ? (
-            <div className="px-4 py-10 text-center text-sm text-slate-600">
-              Aucune opportunité dans ce rapport.
+      {/* PROCHAINE ACTION */}
+      {nextAction && (
+        <section className="rounded-2xl border border-red-600/40 bg-slate-950 p-6 space-y-3">
+          <h2 className="text-lg font-semibold text-white">
+            🔥 Prochaine action recommandée
+          </h2>
+          <p className="text-slate-300 font-medium">{nextAction.title}</p>
+          <p className="text-sm text-slate-400">{nextAction.action}</p>
+
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="text-sm text-slate-400">
+              Potentiel estimé :{" "}
+              <span className="font-semibold text-white">
+                {money(nextAction.valueCents)}
+              </span>
             </div>
-          ) : null}
+
+            <Link
+              href={`/audit?focus=${encodeURIComponent(
+                nextAction.id
+              )}&from=report`}
+              className="rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-500"
+            >
+              Traiter maintenant →
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* DÉTAILS */}
+      <section className="rounded-xl border border-white/10 bg-slate-950">
+        <div className="border-b border-white/10 px-4 py-3">
+          <div className="text-sm font-semibold text-white">
+            Détails complets
+          </div>
+          <div className="text-xs text-slate-400">
+            Sévérité décroissante · valeur estimée
+          </div>
         </div>
-      </div>
+
+        <div className="divide-y divide-white/5">
+          {findings.map((f) => (
+            <div key={f.id} className="px-4 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`rounded-full px-2 py-0.5 ${
+                        f.handled
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : "bg-slate-700/40 text-slate-300"
+                      }`}
+                    >
+                      {f.handled ? "Traité" : "À traiter"}
+                    </span>
+                    <span className="text-slate-400">
+                      Sévérité {f.severity}
+                    </span>
+                  </div>
+
+                  <div className="mt-1 font-semibold text-white">
+                    {f.title}
+                  </div>
+
+                  {f.description && (
+                    <div className="text-sm text-slate-400 mt-1">
+                      {f.description}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-right">
+                  <div className="text-xs text-slate-400">Valeur</div>
+                  <div className="text-sm font-semibold text-white">
+                    {money(f.valueCents)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

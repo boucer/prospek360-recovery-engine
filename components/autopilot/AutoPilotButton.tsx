@@ -4,9 +4,23 @@ import * as React from "react";
 import type { AutoPilotContext } from "@/lib/autopilot/types";
 import { runAutoPilotV1 } from "@/lib/autopilot/runAutoPilot";
 
+export type AutoPilotResult = {
+  title: string;
+  lines: string[];
+  blockReason?: string;
+
+  // Valeur V1.1 (estimations simples — on raffinera quand les actions seront réellement branchées)
+  executedSteps: number;
+  timeSavedMin: number;
+  recoveredOpportunities: number;
+
+  // Journal lisible (basé sur lines)
+  logs: string[];
+};
+
 type Props = {
   ctx: AutoPilotContext;
-  onDone?: (resultTitle: string) => void;
+  onDone?: (result: AutoPilotResult) => void;
   className?: string;
 };
 
@@ -22,7 +36,7 @@ function normalizeEmail(v: string) {
 }
 
 function normalizePhone(v: string) {
-  // V1: on garde simple (pas de lib). On enlève espaces/tirets/parenthèses.
+  // V1: simple (pas de lib). On enlève espaces/tirets/parenthèses.
   return v.replace(/[^\d+]/g, "").trim();
 }
 
@@ -55,6 +69,10 @@ function mergeCtxWithStored(ctx: AutoPilotContext): AutoPilotContext {
       phone: ctx.contact.phone || stored.phone || undefined,
     },
   };
+}
+
+function cleanBullet(line: string) {
+  return line.replace(/^•\s?/, "").trim();
 }
 
 export default function AutoPilotButton({ ctx, onDone, className }: Props) {
@@ -91,14 +109,50 @@ export default function AutoPilotButton({ ctx, onDone, className }: Props) {
 
       const res = await runAutoPilotV1(finalCtx);
 
-      setTitle(res.userSummary.title);
-      setLines(res.userSummary.lines || []);
-      setBlockReason((res as any).blockReason);
-      onDone?.(res.userSummary.title);
+      const t = res.userSummary.title || "✅ Auto-Pilot terminé";
+      const ls = res.userSummary.lines || [];
+      const br = (res as any).blockReason as string | undefined;
+
+      setTitle(t);
+      setLines(ls);
+      setBlockReason(br);
+
+      // ====== V1.1: Résultat structuré pour AutopilotClient ======
+      const cleanedLogs = ls.map((l) => `✓ ${cleanBullet(l)}`);
+
+      // Estimation simple:
+      // - si bloqué => 0
+      // - sinon => on prend jusqu’à 3 “étapes” visibles
+      const executedSteps = br ? 0 : Math.min(3, Math.max(1, ls.length));
+      const timeSavedMin = br ? 0 : executedSteps * 5;
+      const recoveredOpportunities = br ? 0 : executedSteps > 0 ? 1 : 0;
+
+      onDone?.({
+        title: t,
+        lines: ls,
+        blockReason: br,
+        executedSteps,
+        timeSavedMin,
+        recoveredOpportunities,
+        logs: cleanedLogs.length ? cleanedLogs : br ? ["! Action requise avant exécution automatique."] : ["✓ Auto-Pilot terminé"],
+      });
     } catch {
-      setTitle("❌ Auto-Pilot a échoué");
-      setLines(["• Réessaie dans quelques secondes."]);
+      const t = "❌ Auto-Pilot a échoué";
+      const ls = ["• Réessaie dans quelques secondes."];
+
+      setTitle(t);
+      setLines(ls);
       setBlockReason(undefined);
+
+      onDone?.({
+        title: t,
+        lines: ls,
+        blockReason: undefined,
+        executedSteps: 0,
+        timeSavedMin: 0,
+        recoveredOpportunities: 0,
+        logs: ["! Erreur d’exécution. Réessaie."],
+      });
     } finally {
       setIsRunning(false);
     }
@@ -202,15 +256,8 @@ export default function AutoPilotButton({ ctx, onDone, className }: Props) {
 
       {/* Modal Ajouter contact */}
       {showModal ? (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setShowModal(false)}
-          />
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowModal(false)} />
           <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
