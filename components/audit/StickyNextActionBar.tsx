@@ -1,12 +1,22 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 export default function StickyNextActionBar({
   show,
   targetId = "nba-card",
+  // ✅ Nouveau: permet de désactiver ce sticky sur certaines pages
+  disableOnPaths = ["/recovery", "/autopilot"],
 }: {
   show: boolean;
   targetId?: string;
+  disableOnPaths?: string[];
 }) {
+  const pathname = usePathname();
+
+  // ✅ Désactivation propre (évite le double sticky sur Recovery/AutoPilot)
+  if (disableOnPaths?.some((p) => pathname?.startsWith(p))) return null;
+
   if (!show) return null;
 
   return (
