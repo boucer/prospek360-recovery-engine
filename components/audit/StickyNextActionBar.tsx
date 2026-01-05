@@ -5,17 +5,16 @@ import { usePathname } from "next/navigation";
 export default function StickyNextActionBar({
   show,
   targetId = "nba-card",
-  // ✅ Nouveau: permet de désactiver ce sticky sur certaines pages
-  disableOnPaths = ["/recovery", "/autopilot"],
 }: {
   show: boolean;
   targetId?: string;
-  disableOnPaths?: string[];
 }) {
   const pathname = usePathname();
 
-  // ✅ Désactivation propre (évite le double sticky sur Recovery/AutoPilot)
-  if (disableOnPaths?.some((p) => pathname?.startsWith(p))) return null;
+  // ✅ IMPORTANT: Ce sticky est destiné au module AUDIT seulement.
+  // Ça évite la superposition avec le sticky "Prochaine étape" de /recovery.
+  const isAuditPage = (pathname ?? "").startsWith("/audit");
+  if (!isAuditPage) return null;
 
   if (!show) return null;
 
