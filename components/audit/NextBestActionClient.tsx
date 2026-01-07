@@ -277,22 +277,26 @@ export default function NextBestActionClient({
     (lastActionAt ?? 0) > 0 && Date.now() - (lastActionAt ?? 0) <= RECENT_ACTION_TOAST_WINDOW_MS;
 
   const canCopy = Boolean(getCopyText(opportunity));
+  const copyText = getCopyText(opportunity);
 
   return (
     <>
       <div className={wowClass}>
-        <NextBestActionHero
-          opportunity={opportunity}
-          onCopy={copyMessage}
-          onMarkTreated={markHandled}
-          onRunAudit={runAuditNow}
-          onViewHistory={scrollToHistory}
-          isBusy={busy}
-          lastActionSummary={lastActionSummary}
-          lastActionMeta={lastActionMeta}
-          showPostAction={!opportunity && isRecent}
-          canCopy={canCopy}
-        />
+
+<NextBestActionHero
+  opportunity={opportunity}
+  onCopy={copyMessage}
+  onMarkTreated={markHandled}
+  onRunAudit={runAuditNow}
+  onViewHistory={scrollToHistory}
+  isBusy={busy}
+  lastActionSummary={lastActionSummary}
+  lastActionMeta={lastActionMeta}
+  showPostAction={!opportunity && isRecent}
+  canCopy={Boolean(copyText)}
+  copyText={copyText ?? undefined}
+/>
+
       </div>
 
       <StickyNextActionBar show={Boolean(opportunity)} targetId="nba-card" />

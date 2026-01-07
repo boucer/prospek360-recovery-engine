@@ -244,6 +244,7 @@ export default function NextBestActionHero({
   lastActionMeta,
   showPostAction,
   canCopy,
+  copyText
 }: {
   opportunity: Opportunity | null;
   onCopy: (opp: Opportunity) => Promise<void>;
@@ -255,6 +256,7 @@ export default function NextBestActionHero({
   lastActionMeta?: LastActionMeta | null;
   showPostAction?: boolean;
   canCopy?: boolean;
+  copyText?: string;
 }) {
   const shell =
     "relative overflow-hidden rounded-2xl sm:rounded-3xl " +
@@ -323,7 +325,21 @@ export default function NextBestActionHero({
   const priority = getPriority(opportunity);
 
   const opportunityId = o.id ?? o.opportunityId ?? o.recoveryId ?? "";
-  const autopilotHref = `/autopilot?opportunityId=${encodeURIComponent(opportunityId)}`;
+
+const sp = new URLSearchParams();
+sp.set("opportunityId", opportunityId);
+sp.set("findingId", opportunityId);
+sp.set("title", String(title ?? ""));
+sp.set("type", String(priority ?? "NORMAL"));
+sp.set("valueCents", String(valueCents ?? 0));
+
+// ✅ Injecte le message importé (fallback inclus) — limite safe pour URL
+const msg = (copyText ?? "").trim();
+if (msg) sp.set("message", msg.slice(0, 1200));
+
+const autopilotHref = `/autopilot?${sp.toString()}`;
+
+
 
   return (
     <section id="nba-card" className={`${shell} p-4 sm:p-6`}>

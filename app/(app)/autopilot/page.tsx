@@ -3,7 +3,9 @@ import AutopilotClient from "@/components/autopilot/AutopilotClient";
 
 export const dynamic = "force-dynamic";
 
-export default function AutoPilotPage() {
+type SP = Record<string, string | string[] | undefined>;
+
+export default function AutoPilotPage({ searchParams }: { searchParams?: SP }) {
   return (
     <div className="w-full">
       {/* Header interne de page (comme Audit/Recovery) */}
@@ -16,13 +18,11 @@ export default function AutoPilotPage() {
             Enchaîne les actions Recovery automatiquement, étape par étape.
           </p>
         </div>
-
-        {/* Sur desktop, tu peux ajouter des boutons ici si tu veux.
-            Mais comme tu as déjà le hamburger + Accueil dans le layout,
-            on garde clean pour éviter la surcharge. */}
       </div>
 
-      <AutopilotClient />
+      {/* ✅ On passe les searchParams au client pour éviter le "flicker"
+          et rendre le contexte importé fiable */}
+      <AutopilotClient initialSearchParams={searchParams} />
     </div>
   );
 }

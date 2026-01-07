@@ -10,23 +10,66 @@ import AutoPilotButton, { type AutoPilotResult } from "./AutoPilotButton";
 
 const AUTOPILOT_STORAGE_KEY = "prospek360.autopilot.lastResult";
 
-function getIsPremiumFromUrl() {
-  if (typeof window === "undefined") return false;
-  const sp = new URLSearchParams(window.location.search);
-  return sp.get("premium") === "1";
+type InitialParams = Record<string, string | undefined>;
+
+function normalizeInitialParams(
+  input?: Record<string, string | string[] | undefined> | null
+): InitialParams | null {
+  if (!input) return null;
+  const out: InitialParams = {};
+  for (const [k, v] of Object.entries(input)) {
+    out[k] = Array.isArray(v) ? v[0] : v;
+  }
+  return out;
 }
 
-function buildSafeCtxFromUrl(): AutoPilotContext {
-  const sp =
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-  const opportunityId = sp?.get("opportunityId") || "autopilot-global";
-  const findingId = sp?.get("findingId") || undefined;
+function getParam(sp: URLSearchParams | null, params: InitialParams | null, key: string) {
+  return (params?.[key] ?? sp?.get(key) ?? null) || null;
+}
+
+function getIsPremium(params: InitialParams | null) {
+  const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  return getParam(sp, params, "premium") === "1";
+}
+
+function buildSafeCtxFromParams(params: InitialParams | null): AutoPilotContext {
+  const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const opportunityId = getParam(sp, params, "opportunityId") || "autopilot-global";
+  const findingId = getParam(sp, params, "findingId") || undefined;
 
   return {
     opportunityId,
     findingId,
     contact: { email: "", phone: "" },
   } as AutoPilotContext;
+}
+
+function buildFocusMeta(params: InitialParams | null) {
+  const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const title = getParam(sp, params, "title");
+  const type = getParam(sp, params, "type");
+  const valueRaw = getParam(sp, params, "value") || getParam(sp, params, "valueCents");
+  const message =
+    getParam(sp, params, "message") ||
+    getParam(sp, params, "suggestedMessage") ||
+    getParam(sp, params, "copyText");
+
+  let impactLabel: string | null = null;
+  if (valueRaw) {
+    const n = Number(valueRaw);
+    if (Number.isFinite(n)) {
+      // si on reçoit des cents, on convertit
+      const dollars = n > 2000 ? n / 100 : n;
+      impactLabel = `${Math.round(dollars)} $`;
+    }
+  }
+
+  return {
+    title: title?.trim() || null,
+    type: type?.trim() || null,
+    impactLabel,
+    message: message?.trim() || null,
+  };
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -51,10 +94,10 @@ function formatMoneyCad(value: number) {
 }
 
 function readStoredResult(): AutoPilotResult | null {
-  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(AUTOPILOT_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AutoPilotResult) : null;
+    if (!raw) return null;
+    return JSON.parse(raw) as AutoPilotResult;
   } catch {
     return null;
   }
@@ -76,16 +119,24 @@ function clearStoredResult() {
    Component
 ========================= */
 
-export default function AutopilotClient() {
+export default function AutopilotClient({
+  initialSearchParams,
+}: {
+  initialSearchParams?: Record<string, string | string[] | undefined>;
+}) {
   const [isPremium, setIsPremium] = useState(false);
   const [ctx, setCtx] = useState<AutoPilotContext | null>(null);
+
+  const [focusMeta, setFocusMeta] = useState(() => buildFocusMeta(null));
 
   // ✅ V1.4: hydrate depuis localStorage dès le rendu client
   const [result, setResult] = useState<AutoPilotResult | null>(() => readStoredResult());
 
   useEffect(() => {
-    setIsPremium(getIsPremiumFromUrl());
-    setCtx(buildSafeCtxFromUrl());
+    const normalized = normalizeInitialParams(initialSearchParams);
+    setIsPremium(getIsPremium(normalized));
+    setCtx(buildSafeCtxFromParams(normalized));
+    setFocusMeta(buildFocusMeta(normalized));
 
     // Optionnel: si le state init n'a rien (SSR/client edge cases),
     // on tente une seconde lecture.
@@ -96,205 +147,172 @@ export default function AutopilotClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isBlocked = !!result?.blockReason;
+  const summary = useMemo(() => {
+    if (!result) return null;
 
-  const assistantStatus = useMemo(() => {
-    if (!result) return { label: "Assistant prêt", tone: "idle" as const };
-    if (isBlocked) return { label: "Action requise", tone: "warning" as const };
-    return { label: "Travail terminé", tone: "success" as const };
-  }, [result, isBlocked]);
+    const totalValue = result.totalValueCents ? result.totalValueCents / 100 : 0;
+    const timeSaved = result.timeSavedMinutes || 0;
+    const actions = result.actions?.length || 0;
 
-  const valueEstimate = useMemo(() => {
-    if (!result || isBlocked) return null;
-    const recoveredValue = result.recoveredOpportunities * 250;
     return {
-      recoveredValueLabel: formatMoneyCad(recoveredValue),
-      confidence: isPremium ? "Haute" : "Moyenne",
+      totalValue,
+      timeSaved,
+      actions,
     };
-  }, [result, isBlocked, isPremium]);
+  }, [result]);
 
   if (!ctx) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <p className="text-sm text-white/80">Préparation de l’assistant…</p>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
+        <p className="text-sm text-white/70">Chargement de l’assistant…</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* HERO */}
-      <div className="relative overflow-hidden rounded-2xl border border-rose-500/35 bg-gradient-to-b from-slate-950 to-slate-950/60 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            {/* Badges */}
-            <div className="flex items-center gap-2">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-                Auto-Pilot
-              </span>
-
-              {/* Assistant status */}
-              <span
-                className={[
-                  "rounded-full px-3 py-1 text-xs font-semibold border",
-                  assistantStatus.tone === "success" &&
-                    "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
-                  assistantStatus.tone === "warning" &&
-                    "border-amber-300/30 bg-amber-300/10 text-amber-100",
-                  assistantStatus.tone === "idle" &&
-                    "border-white/10 bg-white/5 text-white/70",
-                ].join(" ")}
-              >
-                {assistantStatus.label}
-              </span>
-            </div>
-
-            <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-white">
-              Ton assistant s’occupe des actions Recovery importantes.
-            </h2>
-
-            <p className="mt-2 max-w-2xl text-sm text-white/70">
-              {isPremium
-                ? "Mode Premium : l’assistant agit, vérifie et te résume la valeur."
-                : "Mode gratuit : aperçu guidé. Débloque Premium pour une prise en charge complète."}
-            </p>
-
-            <div className="mt-5">
-              <AutoPilotButton
-                ctx={ctx}
-                onDone={(r) => {
-                  setResult(r);
-                  writeStoredResult(r); // ✅ V1.4: persiste
-                }}
-              />
-            </div>
-
-            {/* ✅ V1.4: control pour effacer */}
-            {result && (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResult(null);
-                    clearStoredResult();
-                  }}
-                  className="text-xs text-white/50 hover:text-white/80 underline"
-                >
-                  Effacer le dernier résultat
-                </button>
-              </div>
-            )}
-
-            {/* ===== RESULT ZONE (animated) ===== */}
-            {result && (
-              <div
-                className={[
-                  "mt-4 transition-all duration-500 ease-out",
-                  "animate-[fadeInUp_0.5s_ease-out]",
-                ].join(" ")}
-              >
-                {/* BLOCKED */}
-                {isBlocked && (
-                  <div className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-5">
-                    <p className="text-sm font-semibold text-amber-100">
-                      L’assistant a besoin de toi
-                    </p>
-                    <p className="mt-1 text-xs text-amber-100/75">
-                      Une information manque avant de poursuivre automatiquement.
-                    </p>
-
-                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
-                      <ul className="space-y-1 text-xs text-white/70">
-                        {result.logs.map((l, i) => (
-                          <li key={i}>{l}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {/* SUCCESS */}
-                {!isBlocked && (
-                  <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-emerald-100">
-                        L’assistant a fait le travail
-                      </p>
-
-                      {valueEstimate && (
-                        <span className="rounded-xl border border-emerald-400/30 bg-black/20 px-3 py-1 text-xs text-emerald-100">
-                          Valeur estimée :{" "}
-                          <strong>{valueEstimate.recoveredValueLabel}</strong>{" "}
-                          <span className="opacity-70">
-                            (confiance {valueEstimate.confidence})
-                          </span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <Stat label="Actions traitées" value={`${result.executedSteps}`} />
-                      <Stat label="Temps économisé" value={`~${result.timeSavedMin} min`} />
-                      <Stat
-                        label="Opportunités récupérées"
-                        value={`${result.recoveredOpportunities}`}
-                      />
-                    </div>
-
-                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
-                      <p className="text-xs font-semibold text-white/80">
-                        Journal de l’assistant
-                      </p>
-                      <ul className="mt-2 space-y-1 text-xs text-white/70">
-                        {result.logs.map((l, i) => (
-                          <li key={i}>{l}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!isPremium && (
-              <div className="mt-4 max-w-2xl rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
-                <p className="text-sm font-semibold text-amber-100">Mode gratuit</p>
-                <p className="mt-1 text-xs text-amber-100/75">
-                  L’assistant te montre ce qu’il ferait. En Premium, il agit pour toi.
+      {/* CONTEXTE (depuis Audit) */}
+      {(focusMeta.title || focusMeta.type || focusMeta.impactLabel) && (
+        <div className="rounded-2xl border border-[#c33541]/35 bg-slate-950/35 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-white/60">
+                Contexte importé depuis Audit
+              </p>
+              <h2 className="mt-1 truncate text-lg font-extrabold text-white">
+                {focusMeta.title || focusMeta.type || "Action prioritaire"}
+              </h2>
+              {(focusMeta.type || focusMeta.impactLabel) && (
+                <p className="mt-1 text-sm text-white/70">
+                  {focusMeta.type ? (
+                    <span className="mr-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white/75">
+                      {focusMeta.type}
+                    </span>
+                  ) : null}
+                  {focusMeta.impactLabel ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white/75">
+                      Impact ≈ {focusMeta.impactLabel}
+                    </span>
+                  ) : null}
                 </p>
-                <div className="mt-3">
-                  <a
-                    href="/premium"
-                    className="inline-flex items-center rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-200"
-                  >
-                    Débloquer Premium
-                  </a>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            <a
+              href="/audit"
+              className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10"
+            >
+              ← Retour Audit
+            </a>
           </div>
 
-          {/* SIDE CARD */}
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/20 p-4">
-            <p className="text-xs font-semibold text-white/75">
-              Comment l’assistant travaille
-            </p>
-            <ul className="mt-2 space-y-2 text-xs text-white/65">
-              <li>• Analyse la situation actuelle</li>
-              <li>• Décide quoi faire en priorité</li>
-              <li>• Agit sans risque</li>
-              <li>• Te résume l’impact</li>
-            </ul>
+          {focusMeta.message && (
+            <div className="mt-3 flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(focusMeta.message || "");
+                  } catch {}
+                }}
+                className="inline-flex w-fit items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10"
+              >
+                📋 Copier le message importé
+              </button>
+              <p className="text-[11px] text-white/55">
+                Astuce : colle-le dans SMS/Email, puis lance l’exécution guidée ci-dessous.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
-            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
-              <p className="text-[11px] text-white/60">
-                Contexte :{" "}
-                <span className="text-white/80">
-                  {ctx.findingId || ctx.opportunityId}
-                </span>
+      {/* HERO */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-6">
+        <div className="absolute inset-0 opacity-20 [background:radial-gradient(900px_500px_at_20%_10%,rgba(195,53,65,0.35),transparent_60%),radial-gradient(900px_500px_at_80%_30%,rgba(255,255,255,0.06),transparent_60%)]" />
+
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/75">
+                ⚡ Auto-Pilot
+              </p>
+              <h2 className="mt-3 text-2xl font-extrabold text-white">
+                Exécution guidée, sans friction.
+              </h2>
+              <p className="mt-1 text-sm text-white/70">
+                Lance l’assistant. Il enchaîne les étapes de récupération, et te confirme
+                chaque action.
               </p>
             </div>
           </div>
+
+          <div className="mt-5">
+            <AutoPilotButton
+              ctx={ctx}
+              onDone={(r) => {
+                setResult(r);
+                writeStoredResult(r); // ✅ V1.4: persiste
+              }}
+            />
+          </div>
+
+          {/* ✅ V1.4: control pour effacer */}
+          {result && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setResult(null);
+                  clearStoredResult();
+                }}
+                className="text-xs text-white/50 hover:text-white/80 underline"
+              >
+                Effacer le dernier résultat
+              </button>
+            </div>
+          )}
+
+          {/* ===== RESULT ZONE (animated) ===== */}
+          {result && (
+            <div className="mt-6 animate-[fadeInUp_.25s_ease-out] space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Stat
+                  label="Valeur récupérable"
+                  value={formatMoneyCad(summary?.totalValue || 0)}
+                />
+                <Stat label="Temps économisé" value={`${summary?.timeSaved || 0} min`} />
+                <Stat label="Actions" value={`${summary?.actions || 0}`} />
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-semibold text-white">Résumé</p>
+                <p className="mt-1 text-sm text-white/70">
+                  {result.summary || "Exécution terminée."}
+                </p>
+
+                {!isPremium && (
+                  <div className="mt-3 rounded-xl border border-[#c33541]/25 bg-[#c33541]/10 p-3">
+                    <p className="text-sm font-semibold text-white">
+                      🔒 Certaines actions sont limitées (Free)
+                    </p>
+                    <p className="mt-1 text-sm text-white/70">
+                      Débloque Premium pour une prise en charge complète.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-3">
+                  <p className="text-[11px] text-white/60">
+                    Contexte :{" "}
+                    <span className="text-white/80">
+                      {ctx.findingId || ctx.opportunityId}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
