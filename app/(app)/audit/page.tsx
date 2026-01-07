@@ -136,7 +136,7 @@ export default async function AuditPage({
               <PendingUndoPanel />
 
               {/* ✅ Historique des audits (aperçu) */}
-              <div className="rounded-2xl border border-white/10 bg-slate-950">
+              <div id="historique" className="rounded-2xl border border-white/10 bg-slate-950">
                 <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                   <div>
                     <div className="text-sm font-semibold text-white">

@@ -6,6 +6,13 @@ import type { Opportunity } from "@/lib/audit/types";
 
 type PriorityTag = "URGENT" | "HIGH_ROI" | "QUICK_WIN" | "NORMAL";
 
+type LastActionMeta = {
+  summary: string;
+  nextLabel?: string;
+  nextHref?: string;
+  nextHint?: string;
+};
+
 function formatCADCompact(cents: number) {
   const dollars = (cents ?? 0) / 100;
   try {
@@ -78,6 +85,154 @@ function PriorityBadge({ tag }: { tag: PriorityTag }) {
   }
 }
 
+function buildGuidanceV2(tag: PriorityTag, valueCents: number) {
+  const impact = valueCents > 0 ? `≈ ${formatCADCompact(valueCents)}` : "impact détecté";
+
+  if (tag === "URGENT") {
+    return {
+      nowTitle: "Maintenant",
+      nowText: "Traite cette opportunité pour éviter la perte immédiate.",
+      thenTitle: "Ensuite",
+      thenText: "Ça débloque les suivis et évite que le lead refroidisse.",
+      afterTitle: "Après",
+      afterText: "Passe en Auto-Pilot pour enchaîner les actions sans perdre le fil.",
+      nextLabel: "⚡ Ouvrir Auto-Pilot",
+      nextHint: `Objectif : enchaîner la suite (impact ${impact}).`,
+    };
+  }
+
+  if (tag === "HIGH_ROI") {
+    return {
+      nowTitle: "Maintenant",
+      nowText: "Action à fort ROI : traite-la pendant qu’elle est chaude.",
+      thenTitle: "Ensuite",
+      thenText: "Le pipeline devient prêt à automatiser (relances + conversions).",
+      afterTitle: "Après",
+      afterText: "Active Auto-Pilot pour exécuter la séquence recommandée.",
+      nextLabel: "⚡ Continuer dans Auto-Pilot",
+      nextHint: `Objectif : capturer le ROI (≈ ${impact}).`,
+    };
+  }
+
+  if (tag === "QUICK_WIN") {
+    return {
+      nowTitle: "Maintenant",
+      nowText: "Quick win : petite action, résultat immédiat.",
+      thenTitle: "Ensuite",
+      thenText: "Ça nettoie le recovery et ouvre la prochaine opportunité.",
+      afterTitle: "Après",
+      afterText: "Enchaîne dans Auto-Pilot si tu veux garder le momentum.",
+      nextLabel: "⚡ Enchaîner (Auto-Pilot)",
+      nextHint: `Objectif : garder le momentum (≈ ${impact}).`,
+    };
+  }
+
+  return {
+    nowTitle: "Maintenant",
+    nowText: "Action recommandée pour garder le système net.",
+    thenTitle: "Ensuite",
+    thenText: "Ça évite l’accumulation et clarifie la prochaine priorité.",
+    afterTitle: "Après",
+    afterText: "Auto-Pilot est recommandé si tu veux enchaîner les actions sans réfléchir.",
+    nextLabel: "⚡ Auto-Pilot",
+    nextHint: "Objectif : exécution guidée, sans friction.",
+  };
+}
+
+function V2Timeline({
+  tag,
+  valueCents,
+  autopilotHref,
+}: {
+  tag: PriorityTag;
+  valueCents: number;
+  autopilotHref: string;
+}) {
+  const g = buildGuidanceV2(tag, valueCents);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="text-xs font-semibold text-white/70">Guidance</div>
+
+      <div className="mt-3 grid gap-3">
+        <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
+          <div className="text-xs font-semibold text-white">{g.nowTitle}</div>
+          <div className="mt-1 text-sm text-white/70">{g.nowText}</div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
+          <div className="text-xs font-semibold text-white">{g.thenTitle}</div>
+          <div className="mt-1 text-sm text-white/70">{g.thenText}</div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
+          <div className="text-xs font-semibold text-white">{g.afterTitle}</div>
+          <div className="mt-1 text-sm text-white/70">{g.afterText}</div>
+        </div>
+
+        {/* ✅ CTA UNIQUE Auto-Pilot (plus de doublon) */}
+        <div className="flex flex-col gap-1 pt-1">
+  <Link
+    href={autopilotHref}
+    className="inline-flex w-fit items-center justify-center rounded-xl bg-[#c33541] px-4 py-2 text-sm font-bold hover:brightness-110"
+    title={g.nextHint}
+  >
+    {g.nextLabel}
+  </Link>
+
+  <span className="text-xs text-white/60">
+    Recommandé pour exécution guidée, sans friction.
+  </span>
+</div>
+
+      </div>
+    </div>
+  );
+}
+
+function PostActionCard({
+  meta,
+  onRunAudit,
+  onViewHistory,
+}: {
+  meta: LastActionMeta;
+  onRunAudit: () => void | Promise<void>;
+  onViewHistory: () => void;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
+      <div className="text-xs font-semibold text-emerald-200">✅ Action complétée</div>
+      <div className="mt-1 text-sm text-white/80">{meta.summary}</div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {meta.nextHref ? (
+          <Link
+            href={meta.nextHref}
+            className="inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
+            title={meta.nextHint || "Continuer"}
+          >
+            {meta.nextLabel ?? "Continuer"}
+          </Link>
+        ) : null}
+
+        <button
+          onClick={onRunAudit}
+          className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+        >
+          🔁 Relancer l’audit
+        </button>
+
+        <button
+          onClick={onViewHistory}
+          className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+        >
+          📊 Historique
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function NextBestActionHero({
   opportunity,
   onCopy,
@@ -86,6 +241,9 @@ export default function NextBestActionHero({
   onViewHistory,
   isBusy,
   lastActionSummary,
+  lastActionMeta,
+  showPostAction,
+  canCopy,
 }: {
   opportunity: Opportunity | null;
   onCopy: (opp: Opportunity) => Promise<void>;
@@ -94,6 +252,9 @@ export default function NextBestActionHero({
   onViewHistory: () => void;
   isBusy: boolean;
   lastActionSummary?: string | null;
+  lastActionMeta?: LastActionMeta | null;
+  showPostAction?: boolean;
+  canCopy?: boolean;
 }) {
   const shell =
     "relative overflow-hidden rounded-2xl sm:rounded-3xl " +
@@ -101,7 +262,6 @@ export default function NextBestActionHero({
     "border-[4px] sm:border-[5px] border-[#c33541] ring-1 ring-[#c33541]/40 " +
     "shadow-[0_0_32px_rgba(195,53,65,0.16)]";
 
-  // ✅ Empty state (mobile compact)
   if (!opportunity) {
     return (
       <section id="nba-card" className={`${shell} p-4 sm:p-6`}>
@@ -119,36 +279,44 @@ export default function NextBestActionHero({
           {lastActionSummary ? lastActionSummary : "Dernière action : mise à jour effectuée."}
         </p>
 
-        {/* ✅ Boutons : moins de hauteur en mobile, wrap clean */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            onClick={onRunAudit}
-            disabled={isBusy}
-            className="inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
-          >
-            🔁 Relancer l’audit
-          </button>
+        {showPostAction && lastActionMeta ? (
+          <PostActionCard meta={lastActionMeta} onRunAudit={onRunAudit} onViewHistory={onViewHistory} />
+        ) : (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-xs font-semibold text-white/70">Guidance</div>
+            <div className="mt-2 text-sm text-white/70">
+              Prochaine étape : relancer l’audit plus tard ou consulter l’historique pour confirmer les derniers changements.
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={onRunAudit}
+                disabled={isBusy}
+                className="inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                🔁 Relancer l’audit
+              </button>
 
-          <button
-            onClick={onViewHistory}
-            className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
-          >
-            📊 Voir l’historique
-          </button>
+              <button
+                onClick={onViewHistory}
+                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+              >
+                📊 Voir l’historique
+              </button>
 
-          <Link
-            href="/autopilot"
-            className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
-            title="Ouvrir Auto-Pilot"
-          >
-            ⚡ Auto-Pilot
-          </Link>
-        </div>
+              <Link
+                href="/autopilot"
+                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
+                title="Ouvrir Auto-Pilot"
+              >
+                ⚡ Auto-Pilot
+              </Link>
+            </div>
+          </div>
+        )}
       </section>
     );
   }
 
-  // ✅ Normal state
   const o: any = opportunity as any;
   const title = o.title || o.name || "Prochaine action";
   const valueCents = (o.valueCents ?? 0) as number;
@@ -178,7 +346,9 @@ export default function NextBestActionHero({
         </span>
       </div>
 
-      {/* ✅ Actions compact mobile: wrap, pas de gros boutons full width */}
+      <V2Timeline tag={priority} valueCents={valueCents} autopilotHref={autopilotHref} />
+
+      {/* ✅ Boutons bas : plus de doublon Auto-Pilot */}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           onClick={() => onMarkTreated(opportunity)}
@@ -188,21 +358,20 @@ export default function NextBestActionHero({
           ✅ Traité
         </button>
 
-        <button
-          onClick={() => onCopy(opportunity)}
-          disabled={isBusy}
-          className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
-        >
-          📋 Copier
-        </button>
-
-        <Link
-          href={autopilotHref}
-          className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
-          title="Ouvrir Auto-Pilot avec ce contexte"
-        >
-          ⚡ Auto-Pilot
-        </Link>
+        {canCopy ? (
+          <button
+            onClick={() => onCopy(opportunity)}
+            disabled={isBusy}
+            className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+            title="Copier le message suggéré"
+          >
+            📋 Copier le message
+          </button>
+        ) : (
+          <span className="inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/45">
+            📋 Copier (bientôt)
+          </span>
+        )}
 
         <button
           onClick={onViewHistory}
