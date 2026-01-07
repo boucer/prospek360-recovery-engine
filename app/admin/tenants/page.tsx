@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 import { TENANT_COOKIE } from "@/lib/tenant";
 
 export default async function TenantsPage() {
-  await requireAdmin("/admin/tenants");
+  await requireAdmin();
 
   const jar = await cookies();
   const currentSlug = jar.get(TENANT_COOKIE)?.value?.trim() || "";

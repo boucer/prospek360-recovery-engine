@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 import { TENANT_COOKIE } from "@/lib/tenant";
 
 export async function POST(req: Request) {
-  await requireAdmin("/admin/tenants");
+  await requireAdmin();
 
   const contentType = req.headers.get("content-type") || "";
   let slug: string | null = null;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/adminAuth";
 
 export default async function AdminHome() {
-  await requireAdmin("/admin");
+  await requireAdmin();
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
