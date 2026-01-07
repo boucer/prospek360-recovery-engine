@@ -151,13 +151,12 @@ export default function AutopilotClient({
     if (!result) return null;
 
     const totalValue = result.totalValueCents ? result.totalValueCents / 100 : 0;
-    const timeSaved = result.timeSavedMinutes || 0;
-    const actions = result.actions?.length || 0;
+    const timeSaved = result.timeSavedMin || 0;
+    
 
     return {
       totalValue,
       timeSaved,
-      actions,
     };
   }, [result]);
 
@@ -294,13 +293,14 @@ export default function AutopilotClient({
                   value={formatMoneyCad(summary?.totalValue || 0)}
                 />
                 <Stat label="Temps économisé" value={`${summary?.timeSaved || 0} min`} />
-                <Stat label="Actions" value={`${summary?.actions || 0}`} />
+		<Stat label="Valeur" value={`${summary?.totalValue || 0} $`} />
+
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p className="text-sm font-semibold text-white">Résumé</p>
                 <p className="mt-1 text-sm text-white/70">
-                  {result.summary || "Exécution terminée."}
+                  {`Exécution terminée. Temps économisé: ${summary?.timeSaved ?? 0} min.`}
                 </p>
 
                 {!isPremium && (

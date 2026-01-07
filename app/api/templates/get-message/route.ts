@@ -12,22 +12,19 @@ export async function POST(req: Request) {
     );
   }
 
-  const template = await prisma.messageTemplate.findFirst({
-    where: {
-      organizationId,
-      key,
-      channel: channel ?? "SMS",
-      isActive: true,
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  const tpl = await prisma.messageTemplate.findFirst({
+  where: {
+    organizationId,
+    channel: channel ?? "SMS",
+    isActive: true,
+  },
+  orderBy: { updatedAt: "desc" },
+});
 
-  if (!template) {
-    return NextResponse.json({ body: null });
-  }
+return NextResponse.json({
+  ok: true,
+  template: tpl?.body ?? "Message par défaut (V1).",
+  subject: tpl?.subject ?? null,
+});
 
-  return NextResponse.json({
-    body: template.body,
-    subject: template.subject ?? null,
-  });
 }
