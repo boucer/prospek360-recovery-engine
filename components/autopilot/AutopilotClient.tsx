@@ -244,6 +244,18 @@ export default function AutopilotClient({
                 Lance l’assistant. Il enchaîne les étapes de récupération, et te confirme
                 chaque action.
               </p>
+		{/* Mini-étape – Guidance contextuelle V1.6 */}
+<div className="mt-4 rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3">
+  <div className="text-xs font-semibold text-white/80">
+    Étape suivante (optionnelle)
+  </div>
+
+  <div className="mt-1 text-sm text-white/70">
+    Tu peux lancer l’exécution guidée ci-dessous, ou copier le message et agir
+    manuellement si tu préfères garder le contrôle.
+  </div>
+</div>
+
             </div>
           </div>
 

@@ -208,20 +208,58 @@ export default function NextBestActionClient({
     }
   }
 
-  async function copyMessage(opp: Opportunity) {
-    if (busy) return;
-    setBusy(true);
+ async function copyMessage(opp: Opportunity) {
+  if (busy) return;
+  setBusy(true);
 
-    try {
-      const msg = getCopyText(opp) ?? "";
-      await navigator.clipboard.writeText(msg);
-      emitToast("📋 Message prêt à envoyer.", TOAST_MS_INFO);
-    } catch {
-      emitToast("❌ Copie impossible.", TOAST_MS_ERROR);
-    } finally {
-      setBusy(false);
+  try {
+    const organizationId =
+      (opp as any)?.organizationId ||
+      process.env.NEXT_PUBLIC_DEFAULT_ORG_ID ||
+      null;
+
+    let finalMessage: string | null = null;
+
+    // 1) Try template from DB (server) — if we have an orgId
+    if (organizationId) {
+      const res = await fetch("/api/templates/get-message", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          // V1 mapping: key = opp.type, sinon DEFAULT
+          key: (opp as any)?.type || "DEFAULT",
+          channel: "SMS",
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (json?.body && typeof json.body === "string" && json.body.trim()) {
+          finalMessage = json.body.trim();
+        }
+      }
     }
+
+    // 2) Fallback local (existing)
+    if (!finalMessage) {
+      finalMessage = (getCopyText(opp) ?? "").trim();
+    }
+
+    if (!finalMessage) {
+      emitToast("⚠️ Aucun message disponible.", TOAST_MS_INFO);
+      return;
+    }
+
+    await navigator.clipboard.writeText(finalMessage);
+    emitToast("📋 Message prêt à envoyer.", TOAST_MS_INFO);
+  } catch {
+    emitToast("❌ Copie impossible.", TOAST_MS_ERROR);
+  } finally {
+    setBusy(false);
   }
+}
+
 
   async function markHandled(opp: Opportunity) {
     if (busy) return;

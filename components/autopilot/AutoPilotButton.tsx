@@ -11,6 +11,7 @@ export type AutoPilotResult = {
 
   // Valeur V1.1 (estimations simples — on raffinera quand les actions seront réellement branchées)
   executedSteps: number;
+  totalValueCents?: number;
   timeSavedMin: number;
   recoveredOpportunities: number;
 
