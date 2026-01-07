@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminOrgsPage() {
-  requireAdmin("/admin/orgs");
+  requireAdmin();
 
   const orgs = await prisma.organization.findMany({
     orderBy: { createdAt: "desc" },
