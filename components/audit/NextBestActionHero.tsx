@@ -13,6 +13,22 @@ type LastActionMeta = {
   nextHint?: string;
 };
 
+type DecisionPayload = {
+  ok: boolean;
+  decision?: {
+    decision: "FOLLOW_UP_NOW" | "WAIT" | "ESCALATE" | "NEED_INFO" | "STOP";
+    confidence: number;
+    reasons: string[];
+    guardrails?: string[];
+    meta?: {
+      ageDays: number;
+      severity: number;
+      valueCents: number;
+      priorityTag: PriorityTag;
+    };
+  };
+};
+
 function formatCADCompact(cents: number) {
   const dollars = (cents ?? 0) / 100;
   try {
@@ -170,21 +186,20 @@ function V2Timeline({
           <div className="mt-1 text-sm text-white/70">{g.afterText}</div>
         </div>
 
-        {/* ✅ CTA UNIQUE Auto-Pilot (plus de doublon) */}
+        {/* ✅ CTA UNIQUE Auto-Pilot */}
         <div className="flex flex-col gap-1 pt-1">
-  <Link
-    href={autopilotHref}
-    className="inline-flex w-fit items-center justify-center rounded-xl bg-[#c33541] px-4 py-2 text-sm font-bold hover:brightness-110"
-    title={g.nextHint}
-  >
-    {g.nextLabel}
-  </Link>
+          <Link
+            href={autopilotHref}
+            className="inline-flex w-fit items-center justify-center rounded-xl bg-[#c33541] px-4 py-2 text-sm font-bold hover:brightness-110"
+            title={g.nextHint}
+          >
+            {g.nextLabel}
+          </Link>
 
-  <span className="text-xs text-white/60">
-    Recommandé pour exécution guidée, sans friction.
-  </span>
-</div>
-
+          <span className="text-xs text-white/60">
+            Recommandé pour exécution guidée, sans friction.
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -233,6 +248,58 @@ function PostActionCard({
   );
 }
 
+function ConfidencePill({ confidence }: { confidence: number }) {
+  const c = Math.max(0, Math.min(100, confidence || 0));
+  const label = c >= 85 ? "Très sûr" : c >= 70 ? "Confiant" : c >= 55 ? "Probable" : "À valider";
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
+      🧠 {label} · {c}%
+    </span>
+  );
+}
+
+function DecisionWhy({
+  loading,
+  reasons,
+  guardrails,
+  confidence,
+}: {
+  loading: boolean;
+  reasons: string[] | null;
+  guardrails?: string[] | null;
+  confidence?: number | null;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold text-white/70">Pourquoi cette action</div>
+        {typeof confidence === "number" ? <ConfidencePill confidence={confidence} /> : null}
+      </div>
+
+      {loading ? (
+        <div className="mt-2 text-sm text-white/60">Analyse…</div>
+      ) : reasons && reasons.length ? (
+        <ul className="mt-2 space-y-1">
+          {reasons.slice(0, 4).map((r, idx) => (
+            <li key={idx} className="text-sm text-white/75">
+              • {r}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-2 text-sm text-white/60">—</div>
+      )}
+
+      {guardrails && guardrails.length ? (
+        <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
+          <div className="text-xs font-semibold text-white/70">Guardrails</div>
+          <div className="mt-1 text-sm text-white/70">{guardrails[0]}</div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function NextBestActionHero({
   opportunity,
   onCopy,
@@ -244,7 +311,7 @@ export default function NextBestActionHero({
   lastActionMeta,
   showPostAction,
   canCopy,
-  copyText
+  copyText,
 }: {
   opportunity: Opportunity | null;
   onCopy: (opp: Opportunity) => Promise<void>;
@@ -264,6 +331,64 @@ export default function NextBestActionHero({
     "border-[4px] sm:border-[5px] border-[#c33541] ring-1 ring-[#c33541]/40 " +
     "shadow-[0_0_32px_rgba(195,53,65,0.16)]";
 
+  // --- Decision Engine (client fetch) ---
+  const [decisionLoading, setDecisionLoading] = React.useState(false);
+  const [decisionReasons, setDecisionReasons] = React.useState<string[] | null>(null);
+  const [decisionGuardrails, setDecisionGuardrails] = React.useState<string[] | null>(null);
+  const [decisionConfidence, setDecisionConfidence] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      if (!opportunity) {
+        setDecisionLoading(false);
+        setDecisionReasons(null);
+        setDecisionGuardrails(null);
+        setDecisionConfidence(null);
+        return;
+      }
+
+      const o: any = opportunity as any;
+      const findingId = (o.id ?? o.findingId ?? o.recoveryFindingId) as string | undefined;
+      if (!findingId) return;
+
+      setDecisionLoading(true);
+      try {
+        const res = await fetch(`/api/recovery/decision?findingId=${encodeURIComponent(findingId)}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const json = (await res.json().catch(() => null)) as DecisionPayload | null;
+        if (!alive) return;
+
+        if (res.ok && json?.ok && json.decision) {
+          setDecisionReasons(Array.isArray(json.decision.reasons) ? json.decision.reasons : []);
+          setDecisionGuardrails(Array.isArray(json.decision.guardrails) ? json.decision.guardrails : null);
+          setDecisionConfidence(typeof json.decision.confidence === "number" ? json.decision.confidence : null);
+        } else {
+          setDecisionReasons(null);
+          setDecisionGuardrails(null);
+          setDecisionConfidence(null);
+        }
+      } catch {
+        if (!alive) return;
+        setDecisionReasons(null);
+        setDecisionGuardrails(null);
+        setDecisionConfidence(null);
+      } finally {
+        if (!alive) return;
+        setDecisionLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [opportunity]);
+
   if (!opportunity) {
     return (
       <section id="nba-card" className={`${shell} p-4 sm:p-6`}>
@@ -282,7 +407,11 @@ export default function NextBestActionHero({
         </p>
 
         {showPostAction && lastActionMeta ? (
-          <PostActionCard meta={lastActionMeta} onRunAudit={onRunAudit} onViewHistory={onViewHistory} />
+          <PostActionCard
+            meta={lastActionMeta}
+            onRunAudit={onRunAudit}
+            onViewHistory={onViewHistory}
+          />
         ) : (
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-xs font-semibold text-white/70">Guidance</div>
@@ -326,20 +455,17 @@ export default function NextBestActionHero({
 
   const opportunityId = o.id ?? o.opportunityId ?? o.recoveryId ?? "";
 
-const sp = new URLSearchParams();
-sp.set("opportunityId", opportunityId);
-sp.set("findingId", opportunityId);
-sp.set("title", String(title ?? ""));
-sp.set("type", String(priority ?? "NORMAL"));
-sp.set("valueCents", String(valueCents ?? 0));
+  const sp = new URLSearchParams();
+  sp.set("opportunityId", opportunityId);
+  sp.set("findingId", opportunityId);
+  sp.set("title", String(title ?? ""));
+  sp.set("type", String(priority ?? "NORMAL"));
+  sp.set("valueCents", String(valueCents ?? 0));
 
-// ✅ Injecte le message importé (fallback inclus) — limite safe pour URL
-const msg = (copyText ?? "").trim();
-if (msg) sp.set("message", msg.slice(0, 1200));
+  const msg = (copyText ?? "").trim();
+  if (msg) sp.set("message", msg.slice(0, 1200));
 
-const autopilotHref = `/autopilot?${sp.toString()}`;
-
-
+  const autopilotHref = `/autopilot?${sp.toString()}`;
 
   return (
     <section id="nba-card" className={`${shell} p-4 sm:p-6`}>
@@ -362,9 +488,16 @@ const autopilotHref = `/autopilot?${sp.toString()}`;
         </span>
       </div>
 
+      {/* ✅ NEW: Explainability */}
+      <DecisionWhy
+        loading={decisionLoading}
+        reasons={decisionReasons}
+        guardrails={decisionGuardrails}
+        confidence={decisionConfidence}
+      />
+
       <V2Timeline tag={priority} valueCents={valueCents} autopilotHref={autopilotHref} />
 
-      {/* ✅ Boutons bas : plus de doublon Auto-Pilot */}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           onClick={() => onMarkTreated(opportunity)}
