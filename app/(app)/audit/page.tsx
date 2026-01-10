@@ -11,6 +11,7 @@ import NextBestActionClient from "@/components/audit/NextBestActionClient";
 import RecoveryFindingsPanel from "@/components/audit/RecoveryFindingsPanel";
 import PendingUndoPanel from "@/components/audit/PendingUndoPanel";
 import AuditRunsTable from "@/components/audit/AuditRunsTable";
+import ActivityTimeline from "@/components/audit/ActivityTimeline";
 
 const MAX_RUNS = 8;
 
@@ -162,66 +163,76 @@ export default async function AuditPage({
     </div>
   </div>
 ) : (
-  <RecoveryFindingsPanel
-    findings={findingsLastRun as any}
-    highlightFindingId={currentOpp?.id ?? null}
-  />
+  <div id="opportunities">
+    <RecoveryFindingsPanel
+      findings={findingsLastRun as any}
+      highlightFindingId={currentOpp?.id ?? null}
+    />
+  </div>
 )}
 
 
               {/* ✅ En attente / Undo (indépendant, sous la liste principale) */}
               <PendingUndoPanel />
+	      <ActivityTimeline runs={runs as any} findings={findingsLastRun as any} />
 
-              {/* ✅ Historique des audits (aperçu) */}
-              <div id="historique" className="rounded-2xl border border-white/10 bg-slate-950">
-                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                  <div>
-                    <div className="text-sm font-semibold text-white">
-                      Historique
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      Activités récentes & audits précédents (aperçu)
-                    </div>
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {Math.min(runsPreview.length, MAX_RUNS)}/{runs?.length ?? 0}
-                  </div>
-                </div>
+              {/* ✅ Historique des audits (replié par défaut) */}
+<details
+  id="historique"
+  className="rounded-2xl border border-white/10 bg-slate-950"
+>
+  <summary className="cursor-pointer list-none px-4 py-3 hover:bg-white/5 rounded-2xl flex items-center justify-between">
+    <div>
+      <div className="text-sm font-semibold text-white">
+        Historique
+      </div>
+      <div className="text-xs text-slate-400">
+        Audits précédents (preuve / debug) — optionnel
+      </div>
+    </div>
 
-                <div className="p-4">
-                  <AuditRunsTable runs={runsPreview as any} />
+    <div className="text-xs text-slate-400">
+      {Math.min(runsPreview.length, MAX_RUNS)}/{runs?.length ?? 0} · Afficher
+    </div>
+  </summary>
 
-                  {Array.isArray(runs) && runs.length > MAX_RUNS ? (
-                    <div className="mt-3 flex justify-end">
-                      <Link
-                        href="/audit/report"
-                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10"
-                      >
-                        Voir le dernier rapport →
-                      </Link>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+  <div className="border-t border-white/10">
+    <div className="p-4">
+      <AuditRunsTable runs={runsPreview as any} />
+
+      {Array.isArray(runs) && runs.length > MAX_RUNS ? (
+        <div className="mt-3 flex justify-end">
+          <Link
+            href="/audit/report"
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10"
+          >
+            Voir le dernier rapport →
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  </div>
+</details>
+
             </section>
 
             {/* HERO / NEXT ACTION */}
             <aside className="lg:sticky lg:top-6 self-start">
-              <NextBestActionClient
-  opportunity={
-    currentOpp
-      ? ({
-          ...currentOpp,
-          ageDays,
-          autopilotQueuedAt: currentOpp.autopilotQueuedAt ?? null,
-          autopilotQueued: Boolean(currentOpp.autopilotQueuedAt ?? currentOpp.autopilotQueued),
-        } as any)
-      : null
-  }
-/>
-
-
-            </aside>
+  <NextBestActionClient
+    opportunity={
+      currentOpp
+        ? ({
+            ...currentOpp,
+            ageDays,
+            autopilotQueuedAt: currentOpp.autopilotQueuedAt ?? null,
+            autopilotQueued: Boolean(
+              currentOpp.autopilotQueuedAt ?? currentOpp.autopilotQueued
+            ),
+          } as any)
+        : null
+    }
+  />
+</aside>
           </div>
         </div>
       </main>

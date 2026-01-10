@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import NextBestActionHero from "@/components/audit/NextBestActionHero";
+import { useRouter, usePathname } from "next/navigation";
+import NextBestActionHeroV2 from "@/components/audit/NextBestActionHeroV2";
 import StickyNextActionBar from "@/components/audit/StickyNextActionBar";
 import type { Opportunity } from "@/lib/audit/types";
+import type { LastActionMetaV2 } from "@/components/audit/NextBestActionHeroV2";
 
 const WOW_OUT_MS = 220;
 const SPARK_MS = 420;
@@ -21,7 +22,7 @@ const TOAST_MS_ERROR = 2000;
 const TOAST_MS_PROGRESS = 2000;
 const TOAST_MS_CLEARED = 2200;
 
-type LastActionMeta = {
+type LastActionMetaLocal = {
   summary: string;
   nextLabel?: string;
   nextHref?: string;
@@ -100,12 +101,13 @@ function getCopyText(opp: Opportunity | null): string | null {
 
 export default function NextBestActionClient({ opportunity }: { opportunity: Opportunity | null }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [busy, setBusy] = useState(false);
   const [wow, setWow] = useState<"idle" | "successFlash" | "exit">("idle");
   const [lastActionAt, setLastActionAt] = useState<number | null>(null);
   const [lastActionSummary, setLastActionSummary] = useState<string | null>(null);
-  const [lastActionMeta, setLastActionMeta] = useState<LastActionMeta | null>(null);
+  const [lastActionMeta, setLastActionMeta] = useState<LastActionMetaLocal | null>(null);
 
   const prevHadOpportunityRef = useRef<boolean>(Boolean(opportunity));
 
@@ -124,13 +126,13 @@ export default function NextBestActionClient({ opportunity }: { opportunity: Opp
     try {
       const raw = localStorage.getItem(LAST_ACTION_META_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as LastActionMeta;
+        const parsed = JSON.parse(raw) as LastActionMetaLocal;
         if (parsed && typeof parsed.summary === "string") setLastActionMeta(parsed);
       }
     } catch {}
   }, []);
 
-  const setLastActionNow = (summary?: string, meta?: LastActionMeta) => {
+  const setLastActionNow = (summary?: string, meta?: LastActionMetaLocal) => {
     const ts = Date.now();
     setLastActionAt(ts);
     try {
@@ -176,16 +178,6 @@ export default function NextBestActionClient({ opportunity }: { opportunity: Opp
     prevHadOpportunityRef.current = nowHas;
   }, [opportunity, lastActionAt]);
 
-  const scrollToHistory = () => {
-    const el = document.getElementById("historique");
-    if (el) {
-      try {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      } catch {}
-    }
-    window.location.hash = "historique";
-  };
-
   async function runAuditNow() {
     if (busy) return;
     setBusy(true);
@@ -214,7 +206,6 @@ export default function NextBestActionClient({ opportunity }: { opportunity: Opp
 
       let finalMessage: string | null = null;
 
-      // 1) Try template from DB (server) — if we have an orgId
       if (organizationId) {
         const res = await fetch("/api/templates/get-message", {
           method: "POST",
@@ -234,10 +225,7 @@ export default function NextBestActionClient({ opportunity }: { opportunity: Opp
         }
       }
 
-      // 2) Fallback local
-      if (!finalMessage) {
-        finalMessage = (getCopyText(opp) ?? "").trim();
-      }
+      if (!finalMessage) finalMessage = (getCopyText(opp) ?? "").trim();
 
       if (!finalMessage) {
         emitToast("⚠️ Aucun message disponible.", TOAST_MS_INFO);
@@ -260,7 +248,6 @@ export default function NextBestActionClient({ opportunity }: { opportunity: Opp
     try {
       const o: any = opp as any;
 
-      // ✅ finding-first, puis fallback (ton projet semble souvent avoir o.id = findingId)
       const id =
         (o.findingId ??
           o.recoveryFindingId ??
@@ -319,35 +306,39 @@ export default function NextBestActionClient({ opportunity }: { opportunity: Opp
 
   const copyText = getCopyText(opportunity);
 
-  return (
-    <>
-      <div className={wowClass}>
-        <NextBestActionHero
-          opportunity={opportunity}
-	  decisionLoading={false}          // obligatoire
-  	  decision={null}                  // obligatoire
-          
-	  onCopy={() => {
-  	  if (!opportunity) return;
-  	  void copyMessage(opportunity);
-	  }}
-
-          onMarkTreated={() => {
-  	  if (!opportunity) return;
- 	  void markHandled(opportunity);
-	  }}
-
-          onMarkHandledDirect={runAuditNow}
-	  lastAction={
+  // ✅ On garde le texte “Dernière action” mais on cache le CTA sur /audit
+  const lastActionForHero: LastActionMetaV2 | null =
     lastActionMeta
       ? {
           summary: lastActionMeta.summary,
-          nextLabel: lastActionMeta.nextLabel,
-          nextHref: lastActionMeta.nextHref,
-          nextHint: lastActionMeta.nextHint,
+          ...(pathname?.startsWith("/audit")
+            ? {}
+            : {
+                nextLabel: lastActionMeta.nextLabel,
+                nextHref: lastActionMeta.nextHref,
+                nextHint: lastActionMeta.nextHint,
+              }),
         }
-      : null
-      }
+      : null;
+
+  return (
+    <>
+      <div className={wowClass}>
+        <NextBestActionHeroV2
+          opportunity={opportunity}
+          decisionLoading={false}
+          decision={null}
+          onCopy={() => {
+            if (!opportunity) return;
+            void copyMessage(opportunity);
+          }}
+          onQueueAutopilot={() => {
+            if (!opportunity) return;
+            void markHandled(opportunity);
+          }}
+          onMarkAlreadyHandled={runAuditNow}
+          lastAction={lastActionForHero}
+          hideLastActionCta={pathname?.startsWith("/audit") || (!opportunity && isRecent)}
         />
       </div>
 

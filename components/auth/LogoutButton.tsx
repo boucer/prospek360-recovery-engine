@@ -1,23 +1,30 @@
 "use client";
 
+import * as React from "react";
 import { signOut } from "next-auth/react";
 
-export default function LogoutButton({
-  className = "",
-  label = "Déconnexion",
-  callbackUrl = "/",
-}: {
+type LogoutButtonProps = {
+  callbackUrl?: string;
   className?: string;
   label?: string;
-  callbackUrl?: string;
-}) {
+};
+
+export default function LogoutButton({
+  callbackUrl = "/",
+  className = "",
+  label = "Déconnexion",
+}: LogoutButtonProps) {
+  const [isPending, startTransition] = React.useTransition();
+
   return (
     <button
       type="button"
-      onClick={() => signOut({ callbackUrl })}
+      onClick={() => startTransition(() => signOut({ callbackUrl }))}
+      disabled={isPending}
       className={className}
+      aria-busy={isPending}
     >
-      {label}
+      {isPending ? "..." : label}
     </button>
   );
 }

@@ -256,9 +256,11 @@ export default function RecoveryFindingsPanel({
 
               return (
                 <button
-                  key={f.id}
-                  onClick={() => openFinding(f)}
-                  className={[
+  id={`finding-${f.id}`}
+  key={f.id}
+  onClick={() => openFinding(f)}
+  className={[
+
                     "w-full text-left rounded-2xl border bg-white/5 p-4 shadow-sm transition",
                     "active:scale-[0.99] hover:bg-white/10",
                     isPriority
