@@ -73,6 +73,7 @@ export default async function AuditPage({
   // focus=<findingId> => highlight
   // autoSelect=top => sélection top automatiquement (si tu veux)
   const activeFindings = (findingsLastRun ?? []).filter((f: any) => !f.handled);
+  const isEmpty = activeFindings.length === 0;
 
   const topOpp = activeFindings?.[0] ?? null;
   const focusId =
@@ -127,10 +128,46 @@ export default async function AuditPage({
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
             {/* COLONNE GAUCHE */}
             <section id="opportunities-section" className="space-y-6">
-              <RecoveryFindingsPanel
-                findings={findingsLastRun as any}
-                highlightFindingId={currentOpp?.id ?? null}
-              />
+              {isEmpty ? (
+  <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+    <div className="flex items-center gap-2">
+      <span className="text-xs rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-200">
+        ✅ Audit propre
+      </span>
+    </div>
+
+    <h3 className="mt-3 text-lg font-semibold">
+      Aucune opportunité active détectée
+    </h3>
+
+    <p className="mt-2 text-sm text-white/70 max-w-xl">
+      Aucun lead à risque, aucune relance critique, aucune action prioritaire
+      pour le moment. C’est une bonne situation.
+    </p>
+
+    <ul className="mt-3 space-y-1 text-sm text-white/65">
+      <li>• Tous les éléments détectés ont été traités</li>
+      <li>• Aucun signal “chaud” manquant</li>
+      <li>• Rien à exécuter immédiatement</li>
+    </ul>
+
+    <div className="mt-4 flex flex-wrap gap-2">
+      <RunAuditButton />
+      <Link
+        href="/audit/report"
+        className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+      >
+        Voir le dernier rapport →
+      </Link>
+    </div>
+  </div>
+) : (
+  <RecoveryFindingsPanel
+    findings={findingsLastRun as any}
+    highlightFindingId={currentOpp?.id ?? null}
+  />
+)}
+
 
               {/* ✅ En attente / Undo (indépendant, sous la liste principale) */}
               <PendingUndoPanel />
@@ -171,8 +208,18 @@ export default async function AuditPage({
             {/* HERO / NEXT ACTION */}
             <aside className="lg:sticky lg:top-6 self-start">
               <NextBestActionClient
-  opportunity={currentOpp as any}
+  opportunity={
+    currentOpp
+      ? ({
+          ...currentOpp,
+          ageDays,
+          autopilotQueuedAt: currentOpp.autopilotQueuedAt ?? null,
+          autopilotQueued: Boolean(currentOpp.autopilotQueuedAt ?? currentOpp.autopilotQueued),
+        } as any)
+      : null
+  }
 />
+
 
             </aside>
           </div>

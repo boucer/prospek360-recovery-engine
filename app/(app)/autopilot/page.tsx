@@ -13,7 +13,8 @@ export default async function AutopilotPage({
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto w-full max-w-[1500px] p-6 lg:p-8">
-        <AutopilotClient initialSearchParams={sp} />
+        <AutopilotClient initialParams={sp} />
+
       </div>
     </main>
   );

@@ -98,11 +98,7 @@ function getCopyText(opp: Opportunity | null): string | null {
   return buildFallbackMessage(opp);
 }
 
-export default function NextBestActionClient({
-  opportunity,
-}: {
-  opportunity: Opportunity | null;
-}) {
+export default function NextBestActionClient({ opportunity }: { opportunity: Opportunity | null }) {
   const router = useRouter();
 
   const [busy, setBusy] = useState(false);
@@ -208,58 +204,54 @@ export default function NextBestActionClient({
     }
   }
 
- async function copyMessage(opp: Opportunity) {
-  if (busy) return;
-  setBusy(true);
+  async function copyMessage(opp: Opportunity) {
+    if (busy) return;
+    setBusy(true);
 
-  try {
-    const organizationId =
-      (opp as any)?.organizationId ||
-      process.env.NEXT_PUBLIC_DEFAULT_ORG_ID ||
-      null;
+    try {
+      const organizationId =
+        (opp as any)?.organizationId || process.env.NEXT_PUBLIC_DEFAULT_ORG_ID || null;
 
-    let finalMessage: string | null = null;
+      let finalMessage: string | null = null;
 
-    // 1) Try template from DB (server) — if we have an orgId
-    if (organizationId) {
-      const res = await fetch("/api/templates/get-message", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          organizationId,
-          // V1 mapping: key = opp.type, sinon DEFAULT
-          key: (opp as any)?.type || "DEFAULT",
-          channel: "SMS",
-        }),
-      });
+      // 1) Try template from DB (server) — if we have an orgId
+      if (organizationId) {
+        const res = await fetch("/api/templates/get-message", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            organizationId,
+            key: (opp as any)?.type || "DEFAULT",
+            channel: "SMS",
+          }),
+        });
 
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}));
-        if (json?.body && typeof json.body === "string" && json.body.trim()) {
-          finalMessage = json.body.trim();
+        if (res.ok) {
+          const json = await res.json().catch(() => ({}));
+          if (json?.body && typeof json.body === "string" && json.body.trim()) {
+            finalMessage = json.body.trim();
+          }
         }
       }
-    }
 
-    // 2) Fallback local (existing)
-    if (!finalMessage) {
-      finalMessage = (getCopyText(opp) ?? "").trim();
-    }
+      // 2) Fallback local
+      if (!finalMessage) {
+        finalMessage = (getCopyText(opp) ?? "").trim();
+      }
 
-    if (!finalMessage) {
-      emitToast("⚠️ Aucun message disponible.", TOAST_MS_INFO);
-      return;
-    }
+      if (!finalMessage) {
+        emitToast("⚠️ Aucun message disponible.", TOAST_MS_INFO);
+        return;
+      }
 
-    await navigator.clipboard.writeText(finalMessage);
-    emitToast("📋 Message prêt à envoyer.", TOAST_MS_INFO);
-  } catch {
-    emitToast("❌ Copie impossible.", TOAST_MS_ERROR);
-  } finally {
-    setBusy(false);
+      await navigator.clipboard.writeText(finalMessage);
+      emitToast("📋 Message prêt à envoyer.", TOAST_MS_INFO);
+    } catch {
+      emitToast("❌ Copie impossible.", TOAST_MS_ERROR);
+    } finally {
+      setBusy(false);
+    }
   }
-}
-
 
   async function markHandled(opp: Opportunity) {
     if (busy) return;
@@ -267,7 +259,15 @@ export default function NextBestActionClient({
 
     try {
       const o: any = opp as any;
-      const id = (o.id ?? o.findingId ?? o.recoveryFindingId) as string | undefined;
+
+      // ✅ finding-first, puis fallback (ton projet semble souvent avoir o.id = findingId)
+      const id =
+        (o.findingId ??
+          o.recoveryFindingId ??
+          o.recoveryFinding?.id ??
+          o.id ??
+          o.opportunityId) as string | undefined;
+
       if (!id) throw new Error("missing id");
 
       setWow("successFlash");
@@ -276,10 +276,13 @@ export default function NextBestActionClient({
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error();
 
-      const opportunityId = (o.id ?? o.opportunityId ?? o.recoveryId) as string | undefined;
+      const opportunityId = (o.opportunityId ?? o.recoveryId ?? o.id) as string | undefined;
+
       const autopilotHref = opportunityId
-        ? `/autopilot?opportunityId=${encodeURIComponent(opportunityId)}`
-        : "/autopilot";
+        ? `/autopilot?opportunityId=${encodeURIComponent(opportunityId)}&findingId=${encodeURIComponent(
+            String(id)
+          )}`
+        : `/autopilot?findingId=${encodeURIComponent(String(id))}`;
 
       setLastActionNow("✅ Action traitée — prêt à enchaîner.", {
         summary: "Action traitée. Prochaine étape : enchaîner la séquence guidée.",
@@ -314,27 +317,38 @@ export default function NextBestActionClient({
   const isRecent =
     (lastActionAt ?? 0) > 0 && Date.now() - (lastActionAt ?? 0) <= RECENT_ACTION_TOAST_WINDOW_MS;
 
-  const canCopy = Boolean(getCopyText(opportunity));
   const copyText = getCopyText(opportunity);
 
   return (
     <>
       <div className={wowClass}>
+        <NextBestActionHero
+          opportunity={opportunity}
+	  decisionLoading={false}          // obligatoire
+  	  decision={null}                  // obligatoire
+          
+	  onCopy={() => {
+  	  if (!opportunity) return;
+  	  void copyMessage(opportunity);
+	  }}
 
-<NextBestActionHero
-  opportunity={opportunity}
-  onCopy={copyMessage}
-  onMarkTreated={markHandled}
-  onRunAudit={runAuditNow}
-  onViewHistory={scrollToHistory}
-  isBusy={busy}
-  lastActionSummary={lastActionSummary}
-  lastActionMeta={lastActionMeta}
-  showPostAction={!opportunity && isRecent}
-  canCopy={Boolean(copyText)}
-  copyText={copyText ?? undefined}
-/>
+          onMarkTreated={() => {
+  	  if (!opportunity) return;
+ 	  void markHandled(opportunity);
+	  }}
 
+          onMarkHandledDirect={runAuditNow}
+	  lastAction={
+    lastActionMeta
+      ? {
+          summary: lastActionMeta.summary,
+          nextLabel: lastActionMeta.nextLabel,
+          nextHref: lastActionMeta.nextHref,
+          nextHint: lastActionMeta.nextHint,
+        }
+      : null
+      }
+        />
       </div>
 
       <StickyNextActionBar show={Boolean(opportunity)} targetId="nba-card" />

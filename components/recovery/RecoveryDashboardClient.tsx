@@ -279,6 +279,86 @@ export default function RecoveryDashboardClient({ kpis, trend, breakdown, insigh
         />
       </section>
 
+	{/* ===== KPI helper (micro-explication) ===== */}
+<div className="mt-3">
+  <details className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <summary className="cursor-pointer list-none select-none">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-100">
+            Comprendre ces chiffres
+          </p>
+          <p className="text-xs text-slate-300/70">
+            Définitions rapides (V1) — juste assez pour ne jamais être perdu.
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-200/80">
+          ℹ️ Aide KPI
+        </div>
+      </div>
+    </summary>
+
+    <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">Valeur récupérable</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Montant estimé encore “sur la table” (opportunités non traitées).
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">Récupéré (7j / 30j)</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Valeur récupérée suite aux actions marquées “traitées” sur la période.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">Recovery Score</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Indicateur global (0–100) : priorité, backlog, rythme de traitement.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">Backlog moyen</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Âge moyen des opportunités encore en attente (plus haut = plus risqué).
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">En attente</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Nombre d’opportunités actives (non traitées) à exécuter.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">Traités aujourd’hui</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Actions complétées aujourd’hui (momentum = bénéfice immédiat).
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">Temps moyen (7j)</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Temps moyen pour traiter une opportunité (plus bas = plus efficace).
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+        <p className="text-xs font-semibold text-slate-100">Streak 30 jours</p>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Nombre de jours “actifs” sur 30j (discipline = récupération constante).
+        </p>
+      </div>
+    </div>
+  </details>
+</div>
+
+
       {/* ===== Focus next step (desktop inline, mobile sticky + inline) ===== */}
       <div className="mt-5 rounded-2xl border border-red-500/25 bg-red-500/5 p-4 md:p-5">
         <p className="text-xs text-slate-300/70">Prochaine étape</p>

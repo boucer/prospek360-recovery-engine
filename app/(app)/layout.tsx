@@ -2,6 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import MobileNavMenu from "@/components/layout/MobileNavMenu";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 const HEADER_CONTAINER = "mx-auto w-full max-w-[1500px] px-6 lg:px-8";
 const BODY_CONTAINER = "mx-auto w-full max-w-[1500px] p-6 lg:p-8";
@@ -43,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <MobileNavMenu />
               </div>
 
-              {/* Accueil — DESKTOP ONLY (no mobile duplication) */}
+              {/* Accueil — DESKTOP ONLY */}
               <Link
                 href="/"
                 className="
@@ -56,6 +57,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 Accueil
               </Link>
+
+              {/* ✅ Déconnexion — DESKTOP ONLY */}
+              <div className="hidden sm:inline-flex">
+                <LogoutButton
+                  callbackUrl="/"
+                  className="
+                    rounded-xl border border-red-400/20
+                    bg-red-500/10 px-3 py-2
+                    text-sm font-semibold text-red-200
+                    hover:bg-red-500/20
+                  "
+                  label="Déconnexion"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -48,6 +48,7 @@ export default async function RecoveryPage() {
 
   const todoCount = todo.length;
   const queuedCount = todoCount;
+
   const handledToday = done.filter(
     (f) => f.handledAt && fmtDayKey(f.handledAt) === fmtDayKey(now)
   ).length;
@@ -95,6 +96,18 @@ export default async function RecoveryPage() {
     else break;
   }
 
+  // ✅ V1: champs "réels" attendus par RecoveryDashboardClient
+  const recoverableCentsTodo = todo.reduce((s, f) => s + (f.valueCents ?? 0), 0);
+
+  const recoveredCentsToday = done
+    .filter((f) => f.handledAt && fmtDayKey(f.handledAt) === fmtDayKey(now))
+    .reduce((s, f) => s + (f.valueCents ?? 0), 0);
+
+  const handledLast7d = handled7d.length;
+
+  const handledLast30d = done.filter((f) => f.handledAt && f.handledAt >= d30)
+    .length;
+
   const kpis = {
     todoCount,
     queuedCount,
@@ -106,16 +119,18 @@ export default async function RecoveryPage() {
     avgBacklogDays,
 
     // Champs attendus par RecoveryDashboardClient
-    recoverableCentsTodo: 0,
+    recoverableCentsTodo,
     avgBacklogAgeDaysTodo: avgBacklogDays,
-    handledLast7d: 0,
-    handledLast30d: 0,
-    recoveredCentsToday: 0,
+    handledLast7d,
+    handledLast30d,
+    recoveredCentsToday,
   };
 
   // ===== Trend 7 jours =====
   const trend = Array.from({ length: 7 }).map((_, idx) => {
-    const day = new Date(startOfDay(now).getTime() - (6 - idx) * 24 * 3600 * 1000);
+    const day = new Date(
+      startOfDay(now).getTime() - (6 - idx) * 24 * 3600 * 1000
+    );
     return { day: fmtDayKey(day), handled: 0, recoveredCents: 0 };
   });
 
@@ -151,8 +166,7 @@ export default async function RecoveryPage() {
     todoCount === 0
       ? {
           title: "Tout est sous contrôle",
-          message:
-            "Aucune opportunité critique en retard. Continue le rythme.",
+          message: "Aucune opportunité critique en retard. Continue le rythme.",
         }
       : {
           title: "Momentum facile",
@@ -166,9 +180,7 @@ export default async function RecoveryPage() {
         <div className="mx-auto max-w-[1500px] px-6 py-6 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-semibold text-white">Recovery</h1>
-            <p className="text-sm text-white/60">
-              Dernière analyse en temps réel
-            </p>
+            <p className="text-sm text-white/60">Dernière analyse en temps réel</p>
           </div>
 
           <div className="flex gap-2">

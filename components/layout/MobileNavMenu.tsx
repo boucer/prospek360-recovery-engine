@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 export default function MobileNavMenu() {
   const [open, setOpen] = useState(false);
@@ -43,13 +44,7 @@ export default function MobileNavMenu() {
           hover:bg-white/10 active:scale-[0.98]
         "
       >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          className="text-white"
-        >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-white">
           <path
             d="M4 6h16M4 12h16M4 18h16"
             stroke="currentColor"
@@ -76,6 +71,19 @@ export default function MobileNavMenu() {
           <div className="my-2 h-px bg-white/10" />
 
           <MenuLink href="/" label="Accueil" onClick={() => setOpen(false)} />
+
+          {/* ✅ Déconnexion (en bas du menu) */}
+          <div className="mt-2 pt-2 border-t border-white/10">
+            <LogoutButton
+              callbackUrl="/"
+              className="
+                w-full rounded-xl px-3 py-2 text-left text-sm font-semibold
+                text-red-200/90 hover:text-red-100
+                hover:bg-red-500/10
+              "
+              label="Déconnexion"
+            />
+          </div>
         </div>
       ) : null}
     </div>
