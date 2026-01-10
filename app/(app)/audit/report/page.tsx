@@ -329,7 +329,7 @@ export default async function AuditLastReportPage({
       {nextAction && (
         <section className="rounded-2xl border border-red-600/40 bg-slate-950 p-6 space-y-3">
           <h2 className="text-lg font-semibold text-white">
-            🔥 Prochaine action recommandée
+            🔍 Action recommandée par l’analyse
           </h2>
           <p className="text-slate-300 font-medium">{nextAction.title}</p>
           <p className="text-sm text-slate-400">{nextAction.action}</p>

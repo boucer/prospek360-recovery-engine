@@ -217,7 +217,12 @@ export default function NextBestActionHeroV2(props: Props) {
           🔍 Opportunité détectée
         </div>
 
-        <h2 className="mt-4 text-4xl font-semibold text-white">Analyse prête</h2>
+        <h2 className="mt-4 text-4xl font-semibold text-white">✅ Analyse terminée — actions détectées</h2>
+	<p className="mt-2 text-sm text-white/70">
+  Des opportunités ont été identifiées. Les actions recommandées sont à effectuer
+  dans vos outils habituels (appel, message, CRM).
+</p>
+
 
         <p className="mt-2 text-lg font-semibold text-white/90">{oppTitle}</p>
         <p className="mt-2 text-sm text-slate-300">{actionHint}</p>
